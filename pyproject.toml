@@ -11,6 +11,8 @@ sechat = {git = "https://github.com/gingershaped/sechat", rev = "v3"}
 gidgethub = "^5.3.0"
 tortoise-orm = {extras = ["asyncpg"], version = "^0.22.1"}
 pydantic-settings = "^2.6.1"
+aiohttp = "^3.11.9"
+rich = "^13.9.4"
 
 
 [build-system]
