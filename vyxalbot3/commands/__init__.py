@@ -2,21 +2,23 @@ import inspect
 import random
 from enum import Enum, EnumType
 from logging import getLogger
+import re
+from types import NoneType, UnionType
 from typing import TYPE_CHECKING, Awaitable, Callable
 
 from aiohttp import ClientSession
 from sechat import Room
-from sechat.events import BaseMessageEvent, MessageEvent
+from sechat.events import MessageEvent, MessageEvent
 from uwuipy import Uwuipy
 
-from vyxalbot3.commands.messages import STATUSES
+from vyxalbot3.commands.messages import *
 from vyxalbot3.commands.parser import ArgumentType, parse_arguments
 
 if TYPE_CHECKING:
     from vyxalbot3.commands.parser import Argument
 
 
-type CommandTree = dict[str, CommandTree] | Callable[..., Awaitable[str | None]]
+type CommandTree = dict[str, CommandTree] | Callable[..., Awaitable[str | tuple[str, int | None] | None]]
 
 ARGUMENT_TYPE_SIGNATURES = {
     int: ArgumentType.INT,
@@ -59,12 +61,14 @@ class Commands:
                     case MessageEvent() if event.content.startswith(PREFIX) and len(event.content) > len(PREFIX):
                         async with session.get(f"/message/{event.message_id}?plain=true") as response:
                             content = (await response.text())
-                        response = await self.handle(event, list(parse_arguments(content.removeprefix(PREFIX))))
-                        if response is not None:
-                            await self.room.send(response, event.message_id)
+                        match (await self.handle(event, list(parse_arguments(content.removeprefix(PREFIX))))):
+                            case str(message):
+                                await self.room.send(message, event.message_id)
+                            case (message, reply_to):
+                                await self.room.send(message, reply_to)
 
 
-    async def handle(self, event: BaseMessageEvent, arguments: list["Argument"]):
+    async def handle(self, event: MessageEvent, arguments: list["Argument"]):
         self.logger.debug(f"Handling command: {arguments}")
         command = self.commands
         match arguments[0]:
@@ -100,6 +104,10 @@ class Commands:
                 continue
             if isinstance(parameter.annotation, EnumType):
                 expected_type = ArgumentType.FLAG
+            elif isinstance(parameter.annotation, UnionType):
+                assert parameter.annotation.__args__[1] == NoneType
+                assert parameter.default == None
+                expected_type = ARGUMENT_TYPE_SIGNATURES[parameter.annotation.__args__[0]]
             else:
                 expected_type = ARGUMENT_TYPE_SIGNATURES[parameter.annotation]
             if len(arguments):
@@ -154,17 +162,24 @@ class Commands:
             if isinstance(parameter.annotation, EnumType):
                 values = "/".join(item.value for item in list(parameter.annotation) if isinstance(item, Enum))
                 body = f"ENUM {parameter_name}: {values}"
+            elif isinstance(parameter.annotation, UnionType):
+                body = f"{ARGUMENT_TYPE_SIGNATURES[parameter.annotation.__args__[0]].name} {parameter_name}"
             else:
                 body = f"{ARGUMENT_TYPE_SIGNATURES[parameter.annotation].name} {parameter_name}"
             if parameter.default != parameter.empty:
-                default = parameter.default.value if isinstance(parameter.default, Enum) else repr(parameter.default)
-                parameters.append(f"[{body} = {default}]")
+                if parameter.default == None:
+                    parameters.append(f"[{body}]")
+                else:
+                    default = parameter.default.value if isinstance(parameter.default, Enum) else repr(parameter.default)
+                    parameters.append(f"[{body} = {default}]")
             else:
                 parameters.append(f"({body})")
         return f"`!!/{name} {" ".join(parameters)}`: {doc}"
 
     async def commands_command(self):
         return f"All commands: {", ".join(self.commands.keys())}"
+
+    # Fun commands -----------------
 
     class StatusMood(Enum):
         NORMAL = "normal"
@@ -176,3 +191,34 @@ class Commands:
                 return status
             case Commands.StatusMood.TINGLY:
                 return Uwuipy().uwuify(status)
+            
+    async def coffee_command(self, target: str | None = None):
+        if target is None:
+            return "☕"
+        else:
+            return f"@{target} ☕"
+            
+    async def maul_command(self, event: MessageEvent, target: str):
+        if re.fullmatch(r"me|(vyxal ?bot\d*)", target, re.IGNORECASE) is not None:
+            return RAPTOR.format(user=event.user_name.capitalize()), None
+        else:
+            return RAPTOR.format(user=target.capitalize()), None
+        
+    async def hug_command(self, target: str | None = None):
+        if target is None:
+            return random.choice(HUGS)
+        else:
+            return f"*gives @{target} a hug.* {random.choice(HUGS)}"
+
+    async def sus_command(self):
+        return "ඞ" * random.randint(8, 64)
+
+    async def amilyxal_command(self, event: MessageEvent):
+        return f"You are {"" if (event.user_id == 354515) != (random.random() <= 0.1) else "not "}lyxal."
+
+    async def cookie_command(self):
+        # TODO: Check for adminship
+        if random.random() <= 0.75:
+            return "Here you go: 🍪"
+        else:
+            return "No."
