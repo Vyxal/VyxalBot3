@@ -1277,6 +1277,17 @@ files = [
 ]
 
 [[package]]
+name = "uwuipy"
+version = "0.1.9"
+description = "Allows the easy implementation of uwuifying words for applications like Discord bots and websites"
+optional = false
+python-versions = "<4.0,>=3.10"
+files = [
+    {file = "uwuipy-0.1.9-py3-none-any.whl", hash = "sha256:7579b082a97d1433d38e730609af08da6d069f7b69ef57ee8391e8a8b384b911"},
+    {file = "uwuipy-0.1.9.tar.gz", hash = "sha256:20ec285311cff19a787a1ea84dbe423d6535e59c4d818e135aa315d6606d8f0c"},
+]
+
+[[package]]
 name = "yarl"
 version = "1.18.3"
 description = "Yet another URL library"
@@ -1375,4 +1386,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.13"
-content-hash = "6f0121f331dd8e97fb2a7b84e68b34ea007ddf9021e3b1382f663d2a3e30a252"
+content-hash = "e673dc172f97eff14c773d49e56b10285f411bfd1da47166ae6df0c996b38e4f"

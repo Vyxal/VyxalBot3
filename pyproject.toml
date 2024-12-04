@@ -13,6 +13,7 @@ tortoise-orm = {extras = ["asyncpg"], version = "^0.22.1"}
 pydantic-settings = "^2.6.1"
 aiohttp = "^3.11.9"
 rich = "^13.9.4"
+uwuipy = "^0.1.9"
 
 
 [build-system]

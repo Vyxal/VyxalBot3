@@ -1,12 +1,15 @@
-from enum import Enum, EnumType
 import inspect
+import random
+from enum import Enum, EnumType
 from logging import getLogger
 from typing import TYPE_CHECKING, Awaitable, Callable
 
 from aiohttp import ClientSession
 from sechat import Room
 from sechat.events import BaseMessageEvent, MessageEvent
+from uwuipy import Uwuipy
 
+from vyxalbot3.commands.messages import STATUSES
 from vyxalbot3.commands.parser import ArgumentType, parse_arguments
 
 if TYPE_CHECKING:
@@ -23,7 +26,6 @@ ARGUMENT_TYPE_SIGNATURES = {
 }
 
 PREFIX = "!!/"
-
 
 class Commands:
     logger = getLogger("commands")
@@ -57,12 +59,12 @@ class Commands:
                     case MessageEvent() if event.content.startswith(PREFIX) and len(event.content) > len(PREFIX):
                         async with session.get(f"/message/{event.message_id}?plain=true") as response:
                             content = (await response.text())
-                        response = await self.handle_command(event, list(parse_arguments(content.removeprefix(PREFIX))))
+                        response = await self.handle(event, list(parse_arguments(content.removeprefix(PREFIX))))
                         if response is not None:
                             await self.room.send(response, event.message_id)
 
 
-    async def handle_command(self, event: BaseMessageEvent, arguments: list["Argument"]):
+    async def handle(self, event: BaseMessageEvent, arguments: list["Argument"]):
         self.logger.debug(f"Handling command: {arguments}")
         command = self.commands
         match arguments[0]:
@@ -160,3 +162,17 @@ class Commands:
             else:
                 parameters.append(f"({body})")
         return f"`!!/{name} {" ".join(parameters)}`: {doc}"
+
+    async def commands_command(self):
+        return f"All commands: {", ".join(self.commands.keys())}"
+
+    class StatusMood(Enum):
+        NORMAL = "normal"
+        TINGLY = "tingly"
+    async def status_command(self, mood: StatusMood = StatusMood.NORMAL):
+        status = random.choice(STATUSES)
+        match mood:
+            case Commands.StatusMood.NORMAL:
+                return status
+            case Commands.StatusMood.TINGLY:
+                return Uwuipy().uwuify(status)
