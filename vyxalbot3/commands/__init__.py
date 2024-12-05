@@ -77,7 +77,9 @@ class Commands:
                             f"/message/{event.message_id}?plain=true"
                         ) as response:
                             content = await response.text()
-                        if not (content.startswith(PREFIX) and len(content) > len(PREFIX)):
+                        if not (
+                            content.startswith(PREFIX) and len(content) > len(PREFIX)
+                        ):
                             continue
                         current_user = await self.db.user.upsert(
                             where={"id": event.user_id},
@@ -204,7 +206,9 @@ class Commands:
         if name == "me":
             return "I'd love to, but I don't have any limbs."
         elif name == None:
-            if (trick := await self.db.trick.find_unique(where={"name": "help"})) is not None:
+            if (
+                trick := await self.db.trick.find_unique(where={"name": "help"})
+            ) is not None:
                 return trick.body
             return "No help trick defined."
         path = name.split(" ")
@@ -271,11 +275,12 @@ class Commands:
                     node[name] = {}
             return node
 
+        tricks = {trick.name: {} for trick in await self.db.trick.find_many()}
         return (
             "\n".join(
                 f"    {line}"
                 for line in LeftAligned(draw=BoxStyle(gfx=BOX_LIGHT))(
-                    {"All commands": _traverse(self.commands)}
+                    {"All commands": _traverse(self.commands) | tricks}
                 ).splitlines()
             ),
             None,
@@ -671,7 +676,7 @@ class Commands:
             data={"create": {"name": name, "body": body}, "update": {"body": body}},
         )
         return f"Trick `{name}` updated."
-    
+
     async def trick_delete_command(self, name: str):
         """Delete a text trick."""
         try:
