@@ -251,6 +251,7 @@ class Commands:
 
     async def commands_command(self):
         """List all commands supported by the bot."""
+
         def _traverse(commands: dict[str, CommandTree]):
             node = {}
             for name, item in commands.items():
@@ -259,7 +260,16 @@ class Commands:
                 else:
                     node[name] = {}
             return node
-        return "\n".join(f"    {line}" for line in LeftAligned(draw=BoxStyle(gfx=BOX_LIGHT))({"All commands": _traverse(self.commands)}).splitlines()), None
+
+        return (
+            "\n".join(
+                f"    {line}"
+                for line in LeftAligned(draw=BoxStyle(gfx=BOX_LIGHT))(
+                    {"All commands": _traverse(self.commands)}
+                ).splitlines()
+            ),
+            None,
+        )
 
     # Fun commands
 
@@ -308,7 +318,9 @@ class Commands:
     async def cookie_command(self, *, current_user: User):
         """Bake a cookie. Maybe. You have to be worthy."""
         assert current_user.groups is not None
-        if random.random() <= 0.75 or any(group.group_name == ADMIN_GROUP for group in current_user.groups):
+        if random.random() <= 0.75 or any(
+            group.group_name == ADMIN_GROUP for group in current_user.groups
+        ):
             return "Here you go: 🍪"
         else:
             return "No."
@@ -384,12 +396,16 @@ class Commands:
             f"- Member of groups: {group_names}"
         )
 
-    async def group_create_command(self, name: str, can_manage: list[str] = [], *, current_user: User):
+    async def group_create_command(
+        self, name: str, can_manage: list[str] = [], *, current_user: User
+    ):
         """Create a new group."""
         if (await self.db.group.find_unique(where={"name": name})) is not None:
             return f"There is already a group named _{name}_."
         for group_name in can_manage:
-            group = await self.db.group.find_unique(where={"name": group_name}, include={"is_managed_by": True})
+            group = await self.db.group.find_unique(
+                where={"name": group_name}, include={"is_managed_by": True}
+            )
             if group is None:
                 return f"There is no group named _{name}_."
             if not self.can_user_manage(current_user, group)[0]:
@@ -629,25 +645,31 @@ class Commands:
 
     async def command_permissions_command(self, command: str):
         """Check which groups are allowed to run a command."""
-        permissions = await self.db.commandpermission.find_many(where={"command": command})
+        permissions = await self.db.commandpermission.find_many(
+            where={"command": command}
+        )
         if not len(permissions):
             return f"`!!/{command}` is usable by everybody."
         return f"`!!/{command}` is usable by groups {" | ".join(f"_{permission.group_name}_" for permission in permissions)}."
-    
+
     # Utility commands
 
     async def ping(self, group_name: str, message: str | None = None):
         """Ping every member of a group. Use this feature with caution."""
         if (
             group := await self.db.group.find_unique(
-                where={"name": group_name}, include={"members": {"include": {"user": True}}}
+                where={"name": group_name},
+                include={"members": {"include": {"user": True}}},
             )
         ) is None:
             return f"There is no group named _{group_name}_."
         assert group.members is not None
         if not len(group.members):
             return "Nobody to ping."
-        ping = " ".join(f"@{cast(User, membership.user).name.replace(" ", "")}" for membership in group.members)
+        ping = " ".join(
+            f"@{cast(User, membership.user).name.replace(" ", "")}"
+            for membership in group.members
+        )
         if message is not None:
             return f"{ping} {message}"
         return ping
