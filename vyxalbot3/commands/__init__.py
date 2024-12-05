@@ -99,8 +99,8 @@ class Commands:
         
         argument_values = []
         parameters = inspect.signature(command).parameters
-        for name, parameter in parameters.items():
-            if name in ("self", "event"):
+        for parameter_name, parameter in parameters.items():
+            if parameter_name in ("self", "event"):
                 continue
             if isinstance(parameter.annotation, EnumType):
                 expected_type = ArgumentType.FLAG
@@ -121,13 +121,13 @@ class Commands:
                         argument_values.append(value)
                     case (actual_type, _):
                         return (
-                            f"Incorrect type supplied for argument `{name}`; "
+                            f"Incorrect type supplied for argument `{parameter_name}`; "
                             f"expected **{expected_type.name}** but got **{actual_type.name}**"    
                         )
             elif parameter.default is not parameter.empty:
                 argument_values.append(parameter.default)
             else:
-                return f"Argument `{name}` not provided, expected a value of type **{expected_type.name}**"
+                return f"Argument `{parameter_name}` not provided, expected a value of type **{expected_type.name}**"
         if "event" in parameters:
             return await command(event, *argument_values)
         return await command(*argument_values)
