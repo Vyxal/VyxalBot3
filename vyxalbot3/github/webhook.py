@@ -135,7 +135,7 @@ class GitHubWebhookReporter:
             case "ready_for_review":
                 yield f"{sender} marked pull request {pr} in {repository} as ready for review"
             case "opened" | "reopened" | "enqueued":
-                yield f"{sender} pull request {event.data["action"]} {pr} in {repository}"
+                yield f"{sender} {event.data["action"]} pull request {pr} in {repository}"
 
     @router.register("pull_request_review", action="submitted")
     @handler
