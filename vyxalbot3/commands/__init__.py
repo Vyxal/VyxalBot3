@@ -7,6 +7,8 @@ from types import NoneType, UnionType
 from typing import TYPE_CHECKING, Awaitable, Callable, cast
 
 from aiohttp import ClientSession
+from asciitree import LeftAligned, BoxStyle
+from asciitree.drawing import BOX_LIGHT
 from prisma import Prisma
 from prisma.models import User, Group
 from prisma.errors import RecordNotFoundError
@@ -249,7 +251,15 @@ class Commands:
 
     async def commands_command(self):
         """List all commands supported by the bot."""
-        return f"All commands: {", ".join(self.commands.keys())}"
+        def _traverse(commands: dict[str, CommandTree]):
+            node = {}
+            for name, item in commands.items():
+                if isinstance(item, dict):
+                    node[name] = _traverse(item)
+                else:
+                    node[name] = {}
+            return node
+        return "\n".join(f"    {line}" for line in LeftAligned(draw=BoxStyle(gfx=BOX_LIGHT))({"All commands": _traverse(self.commands)}).splitlines()), None
 
     # Fun commands
 
