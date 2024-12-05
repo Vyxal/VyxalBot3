@@ -18,7 +18,9 @@ if TYPE_CHECKING:
     from vyxalbot3.commands.parser import Argument
 
 
-type CommandTree = dict[str, CommandTree] | Callable[..., Awaitable[str | tuple[str, int | None] | None]]
+type CommandTree = dict[str, CommandTree] | Callable[
+    ..., Awaitable[str | tuple[str, int | None] | None]
+]
 
 ARGUMENT_TYPE_SIGNATURES = {
     int: ArgumentType.INT,
@@ -28,6 +30,7 @@ ARGUMENT_TYPE_SIGNATURES = {
 }
 
 PREFIX = "!!/"
+
 
 class Commands:
     logger = getLogger("commands")
@@ -51,22 +54,32 @@ class Commands:
                 parent = new_parent
             leaf = path[0]
             if leaf in parent:
-                raise Exception(f"A command or group named {leaf} already exists in {parent}")
+                raise Exception(
+                    f"A command or group named {leaf} already exists in {parent}"
+                )
             parent[leaf] = method
 
     async def run(self):
         async with ClientSession(self.room._session._base_url) as session:
             async for event in self.room.events():
                 match event:
-                    case MessageEvent() if event.content.startswith(PREFIX) and len(event.content) > len(PREFIX):
-                        async with session.get(f"/message/{event.message_id}?plain=true") as response:
-                            content = (await response.text())
-                        match (await self.handle(event, list(parse_arguments(content.removeprefix(PREFIX))))):
+                    case MessageEvent() if event.content.startswith(PREFIX) and len(
+                        event.content
+                    ) > len(PREFIX):
+                        async with session.get(
+                            f"/message/{event.message_id}?plain=true"
+                        ) as response:
+                            content = await response.text()
+                        match (
+                            await self.handle(
+                                event,
+                                list(parse_arguments(content.removeprefix(PREFIX))),
+                            )
+                        ):
                             case str(message):
                                 await self.room.send(message, event.message_id)
                             case (message, reply_to):
                                 await self.room.send(message, reply_to)
-
 
     async def handle(self, event: MessageEvent, arguments: list["Argument"]):
         self.logger.debug(f"Handling command: {arguments}")
@@ -84,19 +97,21 @@ class Commands:
             if argument[1] not in command:
                 if index == 0:
                     return f"There is no command named !!/{argument[1]}."
-                parent_name = " ".join(a[1] for a in arguments[:index] if a[0] == ArgumentType.FLAG)
+                parent_name = " ".join(
+                    a[1] for a in arguments[:index] if a[0] == ArgumentType.FLAG
+                )
                 return (
-                    f"The group !!/{parent_name} has no subcommand named \"{argument[1]}\". "
+                    f'The group !!/{parent_name} has no subcommand named "{argument[1]}". '
                     f"Its subcommands are: {", ".join(command.keys())}"
                 )
             command = command[argument[1]]
             if not isinstance(command, dict):
-                arguments = arguments[index + 1:]
+                arguments = arguments[index + 1 :]
                 break
         if isinstance(command, dict):
             parent_name = " ".join(a[1] for a in arguments if a[0] == ArgumentType.FLAG)
             return f"Subcommands of !!/{parent_name} are: {", ".join(command.keys())}"
-        
+
         argument_values = []
         parameters = inspect.signature(command).parameters
         for parameter_name, parameter in parameters.items():
@@ -107,14 +122,19 @@ class Commands:
             elif isinstance(parameter.annotation, UnionType):
                 assert parameter.annotation.__args__[1] == NoneType
                 assert parameter.default == None
-                expected_type = ARGUMENT_TYPE_SIGNATURES[parameter.annotation.__args__[0]]
+                expected_type = ARGUMENT_TYPE_SIGNATURES[
+                    parameter.annotation.__args__[0]
+                ]
             else:
                 expected_type = ARGUMENT_TYPE_SIGNATURES[parameter.annotation]
             if len(arguments):
                 match arguments.pop(0):
                     case (ArgumentType.ERROR, message):
                         return f"Parsing error: {message}"
-                    case (ArgumentType.FLAG, name) if expected_type == ArgumentType.FLAG:
+                    case (
+                        ArgumentType.FLAG,
+                        name,
+                    ) if expected_type == ArgumentType.FLAG:
                         assert isinstance(parameter.annotation, EnumType)
                         argument_values.append(parameter.annotation(name))
                     case (argument_type, value) if expected_type == argument_type:
@@ -122,7 +142,7 @@ class Commands:
                     case (actual_type, _):
                         return (
                             f"Incorrect type supplied for argument `{parameter_name}`; "
-                            f"expected **{expected_type.name}** but got **{actual_type.name}**"    
+                            f"expected **{expected_type.name}** but got **{actual_type.name}**"
                         )
             elif parameter.default is not parameter.empty:
                 argument_values.append(parameter.default)
@@ -141,10 +161,10 @@ class Commands:
         for index, segment in enumerate(path):
             if segment not in help_target:
                 if index == 0:
-                    return f"There is no command named \"{segment}\"."
+                    return f'There is no command named "{segment}".'
                 parent_name = " ".join(path[:index])
                 return (
-                    f"The group \"{parent_name}\" has no subcommand named \"{segment}\". "
+                    f'The group "{parent_name}" has no subcommand named "{segment}". '
                     f"Its subcommands are: {", ".join(help_target.keys())}"
                 )
             help_target = help_target[segment]
@@ -152,15 +172,23 @@ class Commands:
                 break
         if isinstance(help_target, dict):
             parent_name = " ".join(path)
-            return f"Subcommands of !!/{parent_name} are: {", ".join(help_target.keys())}"
-        
+            return (
+                f"Subcommands of !!/{parent_name} are: {", ".join(help_target.keys())}"
+            )
+
         doc = help_target.__doc__ if help_target.__doc__ is not None else "(no help)"
         parameters = []
-        for parameter_name, parameter in inspect.signature(help_target).parameters.items():
+        for parameter_name, parameter in inspect.signature(
+            help_target
+        ).parameters.items():
             if name in ("self", "event"):
                 continue
             if isinstance(parameter.annotation, EnumType):
-                values = "/".join(item.value for item in list(parameter.annotation) if isinstance(item, Enum))
+                values = "/".join(
+                    item.value
+                    for item in list(parameter.annotation)
+                    if isinstance(item, Enum)
+                )
                 body = f"ENUM {parameter_name}: {values}"
             elif isinstance(parameter.annotation, UnionType):
                 body = f"{ARGUMENT_TYPE_SIGNATURES[parameter.annotation.__args__[0]].name} {parameter_name}"
@@ -170,7 +198,11 @@ class Commands:
                 if parameter.default == None:
                     parameters.append(f"[{body}]")
                 else:
-                    default = parameter.default.value if isinstance(parameter.default, Enum) else repr(parameter.default)
+                    default = (
+                        parameter.default.value
+                        if isinstance(parameter.default, Enum)
+                        else repr(parameter.default)
+                    )
                     parameters.append(f"[{body} = {default}]")
             else:
                 parameters.append(f"({body})")
@@ -184,6 +216,7 @@ class Commands:
     class StatusMood(Enum):
         NORMAL = "normal"
         TINGLY = "tingly"
+
     async def status_command(self, mood: StatusMood = StatusMood.NORMAL):
         status = random.choice(STATUSES)
         match mood:
@@ -191,19 +224,19 @@ class Commands:
                 return status
             case Commands.StatusMood.TINGLY:
                 return Uwuipy().uwuify(status)
-            
+
     async def coffee_command(self, target: str | None = None):
         if target is None:
             return "☕"
         else:
             return f"@{target} ☕"
-            
+
     async def maul_command(self, event: MessageEvent, target: str):
         if re.fullmatch(r"me|(vyxal ?bot\d*)", target, re.IGNORECASE) is not None:
             return RAPTOR.format(user=event.user_name.capitalize()), None
         else:
             return RAPTOR.format(user=target.capitalize()), None
-        
+
     async def hug_command(self, target: str | None = None):
         if target is None:
             return random.choice(HUGS)
@@ -222,6 +255,6 @@ class Commands:
             return "Here you go: 🍪"
         else:
             return "No."
+
     async def party_command(self):
         return "".join(random.choice("🎉🎊🥳🎈") for _ in range(15))
-        

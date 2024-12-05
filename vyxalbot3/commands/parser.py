@@ -3,6 +3,7 @@ from string import digits, ascii_letters
 from inspect import signature
 from typing import Generator, Literal
 
+
 class ParseState(Enum):
     TOPLEVEL = auto()
     FLAG = auto()
@@ -19,6 +20,7 @@ class ArgumentType(Enum):
     STRARRAY = auto()
     ERROR = auto()
 
+
 type Argument = (
     tuple[Literal[ArgumentType.FLAG], str]
     | tuple[Literal[ArgumentType.STRING], str]
@@ -28,10 +30,12 @@ type Argument = (
     | tuple[Literal[ArgumentType.ERROR], str]
 )
 
+
 class ParseError(Exception):
     def __init__(self, message: str):
         super().__init__()
         self.message = message
+
 
 def parse_arguments(arguments: str) -> Generator[Argument]:
     characters = list(arguments)

@@ -10,23 +10,12 @@ HUGS = [
     "(づ｡◕‿‿◕｡)づ",
     "༼ つ ◕_◕ ༽つ",
     "(つ ͡° ͜ʖ ͡°)つ",
-    "༼ つ ◕o◕ ༽つ"
+    "༼ つ ◕o◕ ༽つ",
 ]
 
-HELLO = [
-    "hello!",
-    "hi!",
-    "greetings",
-    "good day",
-    "\\o"
-]
+HELLO = ["hello!", "hi!", "greetings", "good day", "\\o"]
 
-GOODBYE = [
-    "o/",
-    "bye!",
-    "adios",
-    "au revoir"
-]
+GOODBYE = ["o/", "bye!", "adios", "au revoir"]
 
 RAPTOR = r"""
                                                                    YOU CAN RUN, BUT YOU CAN'T HIDE, {user}

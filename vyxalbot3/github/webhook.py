@@ -13,6 +13,7 @@ from sechat import Room
 
 from vyxalbot3.github.formatters import *
 
+
 class GitHubWebhookReporter:
     logger = getLogger("GitHubWebhook")
     router = Router()
@@ -72,7 +73,9 @@ class GitHubWebhookReporter:
         if event.data["ref"].split("/")[1] != "heads":
             return
         repository = repository_link(event.data["repository"])
-        ref = ref_link("/".join(event.data["ref"].split("/")[2:]), event.data["repository"])
+        ref = ref_link(
+            "/".join(event.data["ref"].split("/")[2:]), event.data["repository"]
+        )
         verb = "force-pushed" if event.data["forced"] else "pushed"
         pusher_name = event.data["pusher"]["name"]
         if pusher_name == event.data["sender"]["login"]:
@@ -94,7 +97,7 @@ class GitHubWebhookReporter:
             else:
                 message = "(no title)"
             yield f"{sender} {verb} {len(commits)} commits to {ref} in {repository}: {message}"
-    
+
     @router.register("issues")
     @handler
     @staticmethod
@@ -160,7 +163,7 @@ class GitHubWebhookReporter:
             f"{sender} [{action}]({review["html_url"]}) {pr} in {repository}"
             f"{f": \"{escape_markdown(review["body"].splitlines()[0])}\"" if len(review["body"]) else ""}"
         )
-    
+
     @router.register("create")
     @router.register("delete")
     @handler
