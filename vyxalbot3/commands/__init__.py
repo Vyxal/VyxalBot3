@@ -222,3 +222,6 @@ class Commands:
             return "Here you go: 🍪"
         else:
             return "No."
+    async def party_command(self):
+        return ''.join(random.choice("🎉🎊🥳🎈") for _ in range(15))
+        
