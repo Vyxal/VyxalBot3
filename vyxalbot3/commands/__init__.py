@@ -603,3 +603,20 @@ class Commands:
         if not len(permissions):
             return f"`!!/{command}` is usable by everybody."
         return f"`!!/{command}` is usable by groups {" | ".join(f"_{permission.group_name}_" for permission in permissions)}."
+    
+    # Utility commands
+
+    async def ping(self, group_name: str, message: str | None = None):
+        if (
+            group := await self.db.group.find_unique(
+                where={"name": group_name}, include={"members": {"include": {"user": True}}}
+            )
+        ) is None:
+            return f"There is no group named _{group_name}_."
+        assert group.members is not None
+        if not len(group.members):
+            return "Nobody to ping."
+        ping = " ".join(f"@{cast(User, membership.user).name.replace(" ", "")}" for membership in group.members)
+        if message is not None:
+            return f"{ping} {message}"
+        return ping
