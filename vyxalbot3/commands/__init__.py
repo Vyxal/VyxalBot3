@@ -36,6 +36,7 @@ PREFIX = "!!/"
 
 ADMIN_GROUP = "admin"
 
+
 class Commands:
     logger = getLogger("commands")
 
@@ -309,13 +310,15 @@ class Commands:
                         f"{", ".join(f"{user.name} ({user.id})" for user in multiple)}"
                         f". Please run this command again and supply the ID of the user you wish to look up."
                     )
-                
+
     def can_user_manage(self, user: User, group: Group):
         assert user.groups is not None
         if any(group.group_name == ADMIN_GROUP for group in user.groups):
             return True
         assert group.is_managed_by is not None
-        if len(group.is_managed_by) and not len(set(group.is_managed_by) & set(user.groups)):
+        if len(group.is_managed_by) and not len(
+            set(group.is_managed_by) & set(user.groups)
+        ):
             return False, (
                 f"You are not allowed to modify this group. Only members of groups "
                 f"{" | ".join(f"_{group.name}_" for group in group.is_managed_by)} "
@@ -333,10 +336,14 @@ class Commands:
                 case User() as target_user:
                     pass
         assert target_user.groups is not None
-        group_names = ", ".join(
-            group.group_name + (" (protected)" if group.protected else "")
-            for group in target_user.groups
-        ) if len(target_user.groups) else "(none)"
+        group_names = (
+            ", ".join(
+                group.group_name + (" (protected)" if group.protected else "")
+                for group in target_user.groups
+            )
+            if len(target_user.groups)
+            else "(none)"
+        )
         return (
             f"User information of {target_user.name} ({target_user.id}):\n"
             f"- Member of groups: {group_names}"
@@ -359,7 +366,7 @@ class Commands:
         except RecordNotFoundError:
             return "One of the provided groups does not exist!"
         return f"Group {name} created."
-    
+
     async def group_delete_command(self, name: str, *, current_user: User):
         if (
             group := await self.db.group.find_unique(
@@ -375,9 +382,7 @@ class Commands:
                 return error
         if any(member.protected for member in group.members):
             return f"Group _{name}_ has protected members and may not be deleted."
-        await self.db.group.delete(where={
-            "name": name
-        })
+        await self.db.group.delete(where={"name": name})
         return f"Group _{name}_ has been deleted."
 
     async def group_info_command(self, name: str):
@@ -409,9 +414,14 @@ class Commands:
     class MembershipAction(Enum):
         ADD = "add"
         REMOVE = "remove"
-    
+
     async def group_member_command(
-        self, name: str, action: MembershipAction, target: str | None = None, *, current_user: User,
+        self,
+        name: str,
+        action: MembershipAction,
+        target: str | None = None,
+        *,
+        current_user: User,
     ):
         if (
             group := await self.db.group.find_unique(
@@ -434,13 +444,10 @@ class Commands:
                     pass
                 case str(error):
                     return error
-        
+
         current_membership = await self.db.groupmembership.find_unique(
             where={
-                "user_id_group_name": {
-                    "user_id": target_user.id,
-                    "group_name": name
-                }
+                "user_id_group_name": {"user_id": target_user.id, "group_name": name}
             }
         )
         match action:
@@ -452,16 +459,8 @@ class Commands:
                     )
                 await self.db.groupmembership.create(
                     data={
-                        "group": {
-                            "connect": {
-                                "name": name
-                            }
-                        },
-                        "user": {
-                            "connect": {
-                                "id": target_user.id
-                            }
-                        }
+                        "group": {"connect": {"name": name}},
+                        "user": {"connect": {"id": target_user.id}},
                     }
                 )
                 return f"Added {"you" if target_user == current_user else target_user.name} to group _{name}_."
@@ -477,13 +476,15 @@ class Commands:
                     where={
                         "user_id_group_name": {
                             "group_name": name,
-                            "user_id": target_user.id
+                            "user_id": target_user.id,
                         }
                     }
                 )
                 return f"Removed {"you" if target_user == current_user else target_user.name} from group _{name}_."
-    
-    async def group_manager_command(self, target: str, action: MembershipAction, manager: str, *, current_user: User):
+
+    async def group_manager_command(
+        self, target: str, action: MembershipAction, manager: str, *, current_user: User
+    ):
         if (
             target_group := await self.db.group.find_unique(
                 where={"name": target}, include={"is_managed_by": True}
@@ -491,9 +492,7 @@ class Commands:
         ) is None:
             return f"There is no group named _{target}_."
         if (
-            manager_group := await self.db.group.find_unique(
-                where={"name": manager}
-            )
+            manager_group := await self.db.group.find_unique(where={"name": manager})
         ) is None:
             return f"There is no group named _{manager}_."
         assert current_user.groups is not None
@@ -515,27 +514,15 @@ class Commands:
                 if manager_group in target_group.is_managed_by:
                     return f"_{manager}_ is already managing _{target}_."
                 await self.db.group.update(
-                    data={
-                        "is_managed_by": {
-                            "connect": [{
-                                "name": manager
-                            }]
-                        }
-                    },
-                    where={"name": target}
+                    data={"is_managed_by": {"connect": [{"name": manager}]}},
+                    where={"name": target},
                 )
                 return f"_{manager}_ is now managing _{target}_."
             case Commands.MembershipAction.REMOVE:
                 if manager_group not in target_group.is_managed_by:
                     return f"_{manager}_ is not managing _{target}_."
                 await self.db.group.update(
-                    data={
-                        "is_managed_by": {
-                            "disconnect": [{
-                                "name": manager
-                            }]
-                        }
-                    },
-                    where={"name": target}
+                    data={"is_managed_by": {"disconnect": [{"name": manager}]}},
+                    where={"name": target},
                 )
                 return f"_{manager}_ is no longer managing _{target}_."
