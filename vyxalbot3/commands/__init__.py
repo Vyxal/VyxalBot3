@@ -337,7 +337,7 @@ class Commands:
     def can_user_manage(self, user: User, group: Group):
         assert user.groups is not None
         if any(group.group_name == ADMIN_GROUP for group in user.groups):
-            return True
+            return True, None
         assert group.is_managed_by is not None
         if len(group.is_managed_by) and not len(
             set(group.is_managed_by) & set(user.groups)
@@ -347,7 +347,7 @@ class Commands:
                 f"{" | ".join(f"_{group.name}_" for group in group.is_managed_by)} "
                 f"are allowed to do that."
             )
-        return True
+        return True, None
 
     async def user_info_command(self, target: str | None = None, *, current_user: User):
         """Fetch information about a user, yourself by default."""
@@ -373,24 +373,27 @@ class Commands:
             f"- Member of groups: {group_names}"
         )
 
-    async def group_create_command(self, name: str, can_manage: list[str] = []):
+    async def group_create_command(self, name: str, can_manage: list[str] = [], *, current_user: User):
         """Create a new group."""
         if (await self.db.group.find_unique(where={"name": name})) is not None:
-            return f"There is already a group named {name}."
-        try:
-            await self.db.group.create(
-                data={
-                    "name": name,
-                    "members": {},
-                    "allowed_commands": {},
-                    "can_manage": {
-                        "connect": [{"name": name} for name in can_manage],
-                    },
-                }
-            )
-        except RecordNotFoundError:
-            return "One of the provided groups does not exist!"
-        return f"Group {name} created."
+            return f"There is already a group named _{name}_."
+        for group_name in can_manage:
+            group = await self.db.group.find_unique(where={"name": group_name}, include={"is_managed_by": True})
+            if group is None:
+                return f"There is no group named _{name}_."
+            if not self.can_user_manage(current_user, group)[0]:
+                return f"You are not allowed to manage _{group}_."
+        await self.db.group.create(
+            data={
+                "name": name,
+                "members": {},
+                "allowed_commands": {},
+                "can_manage": {
+                    "connect": [{"name": name} for name in can_manage],
+                },
+            }
+        )
+        return f"Group _{name}_ created."
 
     async def group_delete_command(self, name: str, *, current_user: User):
         """Delete a group."""
