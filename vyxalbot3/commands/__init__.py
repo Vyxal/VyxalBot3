@@ -597,3 +597,9 @@ class Commands:
                     }
                 )
                 return f"`!!/{command}` is no longer explicitly usable by _{group}_."
+
+    async def command_permissions_command(self, command: str):
+        permissions = await self.db.commandpermission.find_many(where={"command": command})
+        if not len(permissions):
+            return f"`!!/{command}` is usable by everybody."
+        return f"`!!/{command}` is usable by groups {" | ".join(f"_{permission.group_name}_" for permission in permissions)}."
