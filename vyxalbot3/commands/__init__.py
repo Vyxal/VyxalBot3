@@ -199,7 +199,7 @@ class Commands:
             keyword_args["current_user"] = current_user
         return await command(*argument_values, **keyword_args)
 
-    async def help_command(self, name: str | None):
+    async def help_command(self, name: str | None = None):
         """Display parameters and help for a command."""
         if name == "me":
             return "I'd love to, but I don't have any limbs."
