@@ -42,3 +42,8 @@ model CommandPermission {
 
     @@id([command, group_name])
 }
+
+model Trick {
+    name String @id
+    body String
+}

@@ -72,9 +72,13 @@ class Commands:
         async with ClientSession(self.room._session._base_url) as session:
             async for event in self.room.events():
                 match event:
-                    case MessageEvent() if event.content.startswith(PREFIX) and len(
-                        event.content
-                    ) > len(PREFIX):
+                    case MessageEvent() if PREFIX in event.content:
+                        async with session.get(
+                            f"/message/{event.message_id}?plain=true"
+                        ) as response:
+                            content = await response.text()
+                        if not (content.startswith(PREFIX) and len(content) > len(PREFIX)):
+                            continue
                         current_user = await self.db.user.upsert(
                             where={"id": event.user_id},
                             data={
@@ -87,10 +91,6 @@ class Commands:
                             },
                             include={"groups": True},
                         )
-                        async with session.get(
-                            f"/message/{event.message_id}?plain=true"
-                        ) as response:
-                            content = await response.text()
                         match (
                             await self.handle(
                                 event,
@@ -120,6 +120,12 @@ class Commands:
                 break
             if argument[1] not in command:
                 if index == 0:
+                    if (
+                        trick := await self.db.trick.find_unique(
+                            where={"name": argument[1]}
+                        )
+                    ) is not None:
+                        return trick.body
                     return f"There is no command named !!/{argument[1]}."
                 parent_name = " ".join(
                     a[1] for a in arguments[:index] if a[0] == ArgumentType.FLAG
@@ -193,10 +199,14 @@ class Commands:
             keyword_args["current_user"] = current_user
         return await command(*argument_values, **keyword_args)
 
-    async def help_command(self, name: str):
+    async def help_command(self, name: str | None):
         """Display parameters and help for a command."""
         if name == "me":
             return "I'd love to, but I don't have any limbs."
+        elif name == None:
+            if (trick := await self.db.trick.find_unique(where={"name": "help"})) is not None:
+                return trick.body
+            return "No help trick defined."
         path = name.split(" ")
         help_target = self.commands
         for index, segment in enumerate(path):
@@ -651,6 +661,24 @@ class Commands:
         if not len(permissions):
             return f"`!!/{command}` is usable by everybody."
         return f"`!!/{command}` is usable by groups {" | ".join(f"_{permission.group_name}_" for permission in permissions)}."
+
+    # Trick-related commands
+
+    async def trick_upsert_command(self, name: str, body: str):
+        """Add a text trick. If a trick with the same name exists, it will be replaced."""
+        await self.db.trick.upsert(
+            where={"name": name},
+            data={"create": {"name": name, "body": body}, "update": {"body": body}},
+        )
+        return f"Trick `{name}` updated."
+    
+    async def trick_delete_command(self, name: str):
+        """Delete a text trick."""
+        try:
+            await self.db.trick.delete(where={"name": name})
+        except RecordNotFoundError:
+            return f"No trick named `{name}` exists."
+        return f"Trick `{name}` deleted."
 
     # Utility commands
 
