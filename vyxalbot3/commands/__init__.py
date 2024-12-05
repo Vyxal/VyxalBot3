@@ -136,7 +136,11 @@ class Commands:
 
         assert current_user.groups is not None
         permissions = await self.db.commandpermission.find_many(
-            where={"command": command.__name__.removesuffix(COMMAND_FUNCTION_SUFFIX).replace("_", " ")}
+            where={
+                "command": command.__name__.removesuffix(
+                    COMMAND_FUNCTION_SUFFIX
+                ).replace("_", " ")
+            }
         )
         allowed_groups = set(permission.group_name for permission in permissions)
         if len(allowed_groups) and not len(
@@ -399,7 +403,12 @@ class Commands:
     async def group_info_command(self, name: str):
         group = await self.db.group.find_unique(
             where={"name": name},
-            include={"members": {"include": {"user": True}}, "allowed_commands": True},
+            include={
+                "members": {"include": {"user": True}},
+                "allowed_commands": True,
+                "is_managed_by": True,
+                "can_manage": True,
+            },
         )
         if group is None:
             return f"There is no group named _{name}_."
@@ -416,10 +425,24 @@ class Commands:
             if len(group.allowed_commands)
             else "(none)"
         )
+        assert group.is_managed_by is not None
+        is_managed_by = (
+            " | ".join(group.name for group in group.is_managed_by)
+            if len(group.allowed_commands)
+            else "(none)"
+        )
+        assert group.can_manage is not None
+        can_manage = (
+            " | ".join(group.name for group in group.can_manage)
+            if len(group.can_manage)
+            else "(none)"
+        )
         return (
             f"Group information for {name}:\n"
             f"- Members: {members}\n"
             f"- Allowed commands: {allowed_commands}"
+            f"- Managed by: {is_managed_by}"
+            f"- Can manage: {can_manage}"
         )
 
     class MembershipAction(Enum):
