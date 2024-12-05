@@ -248,6 +248,7 @@ class Commands:
         return f"`!!/{name} {" ".join(parameters)}`: {doc}"
 
     async def commands_command(self):
+        """List all commands supported by the bot."""
         return f"All commands: {", ".join(self.commands.keys())}"
 
     # Fun commands
@@ -257,6 +258,7 @@ class Commands:
         TINGLY = "tingly"
 
     async def status_command(self, mood: StatusMood = StatusMood.NORMAL):
+        """Display "status information"."""
         status = random.choice(STATUSES)
         match mood:
             case Commands.StatusMood.NORMAL:
@@ -265,37 +267,43 @@ class Commands:
                 return Uwuipy().uwuify(status)
 
     async def coffee_command(self, target: str | None = None):
+        """Brew some coffee."""
         if target is None:
             return "☕"
         else:
             return f"@{target} ☕"
 
     async def maul_command(self, target: str, *, event: MessageEvent):
+        """SUMMON THE RAPTORS"""
         if re.fullmatch(r"me|(vyxal ?bot\d*)", target, re.IGNORECASE) is not None:
             return RAPTOR.format(user=event.user_name.capitalize()), None
         else:
             return RAPTOR.format(user=target.capitalize()), None
 
     async def hug_command(self, target: str | None = None):
+        """<3"""
         if target is None:
             return random.choice(HUGS)
         else:
             return f"*gives @{target} a hug.* {random.choice(HUGS)}"
 
     async def sus_command(self):
+        """STOP POSTING ABOUT AMONG US"""
         return "ඞ" * random.randint(8, 64)
 
     async def amilyxal_command(self, *, event: MessageEvent):
+        """Check if you are lyxal."""
         return f"You are {"" if (event.user_id == 354515) != (random.random() <= 0.1) else "not "}lyxal."
 
     async def cookie_command(self):
-        # TODO: Check for adminship
+        """Bake a cookie. Maybe. You have to be worthy."""
         if random.random() <= 0.75:
             return "Here you go: 🍪"
         else:
             return "No."
 
     async def party_command(self):
+        """🎉"""
         return "".join(random.choice("🎉🎊🥳🎈") for _ in range(15))
 
     # Group and user commands
@@ -342,6 +350,7 @@ class Commands:
         return True
 
     async def user_info_command(self, target: str | None = None, *, current_user: User):
+        """Fetch information about a user, yourself by default."""
         if target is None:
             target_user = current_user
         else:
@@ -365,6 +374,7 @@ class Commands:
         )
 
     async def group_create_command(self, name: str, can_manage: list[str] = []):
+        """Create a new group."""
         if (await self.db.group.find_unique(where={"name": name})) is not None:
             return f"There is already a group named {name}."
         try:
@@ -383,6 +393,7 @@ class Commands:
         return f"Group {name} created."
 
     async def group_delete_command(self, name: str, *, current_user: User):
+        """Delete a group."""
         if (
             group := await self.db.group.find_unique(
                 where={"name": name}, include={"is_managed_by": True, "members": True}
@@ -401,6 +412,7 @@ class Commands:
         return f"Group _{name}_ has been deleted."
 
     async def group_info_command(self, name: str):
+        """Fetch member and command information for a group."""
         group = await self.db.group.find_unique(
             where={"name": name},
             include={
@@ -457,6 +469,7 @@ class Commands:
         *,
         current_user: User,
     ):
+        """Add or remove a user from a group, yourself by default."""
         if (
             group := await self.db.group.find_unique(
                 where={"name": name}, include={"is_managed_by": True}
@@ -519,6 +532,7 @@ class Commands:
     async def group_manager_command(
         self, target: str, action: MembershipAction, manager: str, *, current_user: User
     ):
+        """Change which other groups are allowed to manage a group."""
         if (
             target_group := await self.db.group.find_unique(
                 where={"name": target}, include={"is_managed_by": True}
@@ -564,6 +578,7 @@ class Commands:
     async def command_permission_command(
         self, command: str, action: MembershipAction, group: str
     ):
+        """Change which groups are allowed to run a command."""
         if (
             await self.db.group.find_unique(
                 where={"name": group}, include={"is_managed_by": True}
@@ -599,6 +614,7 @@ class Commands:
                 return f"`!!/{command}` is no longer explicitly usable by _{group}_."
 
     async def command_permissions_command(self, command: str):
+        """Check which groups are allowed to run a command."""
         permissions = await self.db.commandpermission.find_many(where={"command": command})
         if not len(permissions):
             return f"`!!/{command}` is usable by everybody."
@@ -607,6 +623,7 @@ class Commands:
     # Utility commands
 
     async def ping(self, group_name: str, message: str | None = None):
+        """Ping every member of a group. Use this feature with caution."""
         if (
             group := await self.db.group.find_unique(
                 where={"name": group_name}, include={"members": {"include": {"user": True}}}
