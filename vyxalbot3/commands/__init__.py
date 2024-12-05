@@ -295,9 +295,10 @@ class Commands:
         """Check if you are lyxal."""
         return f"You are {"" if (event.user_id == 354515) != (random.random() <= 0.1) else "not "}lyxal."
 
-    async def cookie_command(self):
+    async def cookie_command(self, *, current_user: User):
         """Bake a cookie. Maybe. You have to be worthy."""
-        if random.random() <= 0.75:
+        assert current_user.groups is not None
+        if random.random() <= 0.75 or any(group.group_name == ADMIN_GROUP for group in current_user.groups):
             return "Here you go: 🍪"
         else:
             return "No."
