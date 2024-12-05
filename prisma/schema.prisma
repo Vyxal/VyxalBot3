@@ -1,0 +1,41 @@
+generator client {
+    provider             = "prisma-client-py"
+    recursive_type_depth = -1
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model User {
+    id     Int               @id
+    name   String
+    groups GroupMembership[]
+
+    @@index([name])
+}
+
+model GroupMembership {
+    user       User   @relation(fields: [user_id], references: [id])
+    group      Group  @relation(fields: [group_name], references: [name])
+    user_id    Int
+    group_name String
+
+    protected Boolean @default(false)
+
+    @@id([user_id, group_name])
+}
+
+model Group {
+    name             String               @id
+    members          GroupMembership[]
+    allowed_commands CommandPermissions[]
+    can_manage       Group[]              @relation(name: "management")
+    is_managed_by    Group[]              @relation(name: "management")
+}
+
+model CommandPermissions {
+    command        String  @id
+    allowed_groups Group[]
+}

@@ -26,6 +26,7 @@ class Settings(BaseSettings):
         env_file=".env", env_file_encoding="utf-8", env_nested_delimiter="__"
     )
 
+    database_url: str
     webhook: WebhookSettings
     github: GitHubSettings
     chat: ChatSettings

@@ -9,11 +9,12 @@ readme = "README.md"
 python = "^3.13"
 sechat = {git = "https://github.com/gingershaped/sechat", rev = "v3"}
 gidgethub = "^5.3.0"
-tortoise-orm = {extras = ["asyncpg"], version = "^0.22.1"}
+pydantic = "^2.10.3"
 pydantic-settings = "^2.6.1"
 aiohttp = "^3.11.9"
 rich = "^13.9.4"
 uwuipy = "^0.1.9"
+prisma = "^0.15.0"
 
 
 [tool.poetry.group.dev.dependencies]

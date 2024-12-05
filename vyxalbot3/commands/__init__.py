@@ -1,14 +1,17 @@
 import inspect
 import random
+import re
 from enum import Enum, EnumType
 from logging import getLogger
-import re
 from types import NoneType, UnionType
-from typing import TYPE_CHECKING, Awaitable, Callable
+from typing import TYPE_CHECKING, Awaitable, Callable, cast
 
 from aiohttp import ClientSession
+from prisma import Prisma
+from prisma.models import User, Group
+from prisma.errors import RecordNotFoundError
 from sechat import Room
-from sechat.events import MessageEvent, MessageEvent
+from sechat.events import MessageEvent
 from uwuipy import Uwuipy
 
 from vyxalbot3.commands.messages import *
@@ -16,7 +19,6 @@ from vyxalbot3.commands.parser import ArgumentType, parse_arguments
 
 if TYPE_CHECKING:
     from vyxalbot3.commands.parser import Argument
-
 
 type CommandTree = dict[str, CommandTree] | Callable[
     ..., Awaitable[str | tuple[str, int | None] | None]
@@ -28,15 +30,18 @@ ARGUMENT_TYPE_SIGNATURES = {
     str: ArgumentType.STRING,
     list[str]: ArgumentType.STRARRAY,
 }
+IGNORED_PARAMETERS = ("self", "event", "current_user")
 
 PREFIX = "!!/"
 
+ADMIN_GROUP = "admin"
 
 class Commands:
     logger = getLogger("commands")
 
-    def __init__(self, room: Room):
+    def __init__(self, room: Room, db: Prisma):
         self.room = room
+        self.db = db
         self.commands: dict[str, CommandTree] = {}
 
         for method_name, method in inspect.getmembers(self, inspect.ismethod):
@@ -66,6 +71,18 @@ class Commands:
                     case MessageEvent() if event.content.startswith(PREFIX) and len(
                         event.content
                     ) > len(PREFIX):
+                        current_user = await self.db.user.upsert(
+                            where={"id": event.user_id},
+                            data={
+                                "create": {
+                                    "id": event.user_id,
+                                    "name": event.user_name,
+                                    "groups": {},
+                                },
+                                "update": {"name": event.user_name},
+                            },
+                            include={"groups": True},
+                        )
                         async with session.get(
                             f"/message/{event.message_id}?plain=true"
                         ) as response:
@@ -73,6 +90,7 @@ class Commands:
                         match (
                             await self.handle(
                                 event,
+                                current_user,
                                 list(parse_arguments(content.removeprefix(PREFIX))),
                             )
                         ):
@@ -81,7 +99,9 @@ class Commands:
                             case (message, reply_to):
                                 await self.room.send(message, reply_to)
 
-    async def handle(self, event: MessageEvent, arguments: list["Argument"]):
+    async def handle(
+        self, event: MessageEvent, current_user: User, arguments: list["Argument"]
+    ):
         self.logger.debug(f"Handling command: {arguments}")
         command = self.commands
         match arguments[0]:
@@ -115,7 +135,7 @@ class Commands:
         argument_values = []
         parameters = inspect.signature(command).parameters
         for parameter_name, parameter in parameters.items():
-            if parameter_name in ("self", "event"):
+            if parameter_name in IGNORED_PARAMETERS:
                 continue
             if isinstance(parameter.annotation, EnumType):
                 expected_type = ArgumentType.FLAG
@@ -148,9 +168,12 @@ class Commands:
                 argument_values.append(parameter.default)
             else:
                 return f"Argument `{parameter_name}` not provided, expected a value of type **{expected_type.name}**"
+        keyword_args = {}
         if "event" in parameters:
-            return await command(event, *argument_values)
-        return await command(*argument_values)
+            keyword_args["event"] = event
+        if "current_user" in parameters:
+            keyword_args["current_user"] = current_user
+        return await command(*argument_values, **keyword_args)
 
     async def help_command(self, name: str):
         """Display parameters and help for a command."""
@@ -181,7 +204,7 @@ class Commands:
         for parameter_name, parameter in inspect.signature(
             help_target
         ).parameters.items():
-            if name in ("self", "event"):
+            if parameter_name in IGNORED_PARAMETERS:
                 continue
             if isinstance(parameter.annotation, EnumType):
                 values = "/".join(
@@ -211,7 +234,7 @@ class Commands:
     async def commands_command(self):
         return f"All commands: {", ".join(self.commands.keys())}"
 
-    # Fun commands -----------------
+    # Fun commands
 
     class StatusMood(Enum):
         NORMAL = "normal"
@@ -231,7 +254,7 @@ class Commands:
         else:
             return f"@{target} ☕"
 
-    async def maul_command(self, event: MessageEvent, target: str):
+    async def maul_command(self, target: str, *, event: MessageEvent):
         if re.fullmatch(r"me|(vyxal ?bot\d*)", target, re.IGNORECASE) is not None:
             return RAPTOR.format(user=event.user_name.capitalize()), None
         else:
@@ -246,7 +269,7 @@ class Commands:
     async def sus_command(self):
         return "ඞ" * random.randint(8, 64)
 
-    async def amilyxal_command(self, event: MessageEvent):
+    async def amilyxal_command(self, *, event: MessageEvent):
         return f"You are {"" if (event.user_id == 354515) != (random.random() <= 0.1) else "not "}lyxal."
 
     async def cookie_command(self):
@@ -258,3 +281,261 @@ class Commands:
 
     async def party_command(self):
         return "".join(random.choice("🎉🎊🥳🎈") for _ in range(15))
+
+    # Group and user commands
+
+    async def resolve_user(self, target: str):
+        if target.isnumeric():
+            if (
+                target_user := await self.db.user.find_unique(
+                    where={"id": int(target)}, include={"groups": True}
+                )
+            ) is None:
+                return f"I don't know of a user with the ID `{target}`."
+            return target_user
+        else:
+            match (
+                await self.db.user.find_many(
+                    where={"name": target}, include={"groups": True}
+                )
+            ):
+                case []:
+                    return f'I don\'t know of any users named "{target}".'
+                case [single]:
+                    return single
+                case [*multiple]:
+                    return (
+                        f"I know of multiple users named {target}: "
+                        f"{", ".join(f"{user.name} ({user.id})" for user in multiple)}"
+                        f". Please run this command again and supply the ID of the user you wish to look up."
+                    )
+                
+    def can_user_manage(self, user: User, group: Group):
+        assert user.groups is not None
+        if any(group.group_name == ADMIN_GROUP for group in user.groups):
+            return True
+        assert group.is_managed_by is not None
+        if len(group.is_managed_by) and not len(set(group.is_managed_by) & set(user.groups)):
+            return False, (
+                f"You are not allowed to modify this group. Only members of groups "
+                f"{" | ".join(f"_{group.name}_" for group in group.is_managed_by)} "
+                f"are allowed to do that."
+            )
+        return True
+
+    async def user_info_command(self, target: str | None = None, *, current_user: User):
+        if target is None:
+            target_user = current_user
+        else:
+            match (await self.resolve_user(target)):
+                case str(error):
+                    return error
+                case User() as target_user:
+                    pass
+        assert target_user.groups is not None
+        group_names = ", ".join(
+            group.group_name + (" (protected)" if group.protected else "")
+            for group in target_user.groups
+        ) if len(target_user.groups) else "(none)"
+        return (
+            f"User information of {target_user.name} ({target_user.id}):\n"
+            f"- Member of groups: {group_names}"
+        )
+
+    async def group_create_command(self, name: str, can_manage: list[str] = []):
+        if (await self.db.group.find_unique(where={"name": name})) is not None:
+            return f"There is already a group named {name}."
+        try:
+            await self.db.group.create(
+                data={
+                    "name": name,
+                    "members": {},
+                    "allowed_commands": {},
+                    "can_manage": {
+                        "connect": [{"name": name} for name in can_manage],
+                    },
+                }
+            )
+        except RecordNotFoundError:
+            return "One of the provided groups does not exist!"
+        return f"Group {name} created."
+    
+    async def group_delete_command(self, name: str, *, current_user: User):
+        if (
+            group := await self.db.group.find_unique(
+                where={"name": name}, include={"is_managed_by": True, "members": True}
+            )
+        ) is None:
+            return f"There is no group named _{name}_."
+        assert group.members is not None
+        match self.can_user_manage(current_user, group):
+            case (True, _):
+                pass
+            case (False, str(error)):
+                return error
+        if any(member.protected for member in group.members):
+            return f"Group _{name}_ has protected members and may not be deleted."
+        await self.db.group.delete(where={
+            "name": name
+        })
+        return f"Group _{name}_ has been deleted."
+
+    async def group_info_command(self, name: str):
+        group = await self.db.group.find_unique(
+            where={"name": name},
+            include={"members": {"include": {"user": True}}, "allowed_commands": True},
+        )
+        if group is None:
+            return f"There is no group named _{name}_."
+
+        assert group.members is not None
+        members = (
+            ", ".join(cast(User, member.user).name for member in group.members)
+            if len(group.members)
+            else "(none)"
+        )
+        assert group.allowed_commands is not None
+        allowed_commands = (
+            ", ".join(command.command for command in group.allowed_commands)
+            if len(group.allowed_commands)
+            else "(none)"
+        )
+        return (
+            f"Group information of {name}:\n"
+            f"- Members: {members}\n"
+            f"- Allowed commands: {allowed_commands}"
+        )
+
+    class MembershipAction(Enum):
+        ADD = "add"
+        REMOVE = "remove"
+    
+    async def group_member_command(
+        self, name: str, action: MembershipAction, target: str | None = None, *, current_user: User,
+    ):
+        if (
+            group := await self.db.group.find_unique(
+                where={"name": name}, include={"is_managed_by": True}
+            )
+        ) is None:
+            return f"There is no group named _{name}_."
+        assert current_user.groups is not None
+        assert group.is_managed_by is not None
+        match self.can_user_manage(current_user, group):
+            case (True, _):
+                pass
+            case (False, str(error)):
+                return error
+        if target is None:
+            target_user = current_user
+        else:
+            match (await self.resolve_user(target)):
+                case User() as target_user:
+                    pass
+                case str(error):
+                    return error
+        
+        current_membership = await self.db.groupmembership.find_unique(
+            where={
+                "user_id_group_name": {
+                    "user_id": target_user.id,
+                    "group_name": name
+                }
+            }
+        )
+        match action:
+            case Commands.MembershipAction.ADD:
+                if current_membership is not None:
+                    return (
+                        f"{"You are" if target_user == current_user else f"{target_user.name} is"} "
+                        f"already a member of group _{name}_."
+                    )
+                await self.db.groupmembership.create(
+                    data={
+                        "group": {
+                            "connect": {
+                                "name": name
+                            }
+                        },
+                        "user": {
+                            "connect": {
+                                "id": target_user.id
+                            }
+                        }
+                    }
+                )
+                return f"Added {"you" if target_user == current_user else target_user.name} to group _{name}_."
+            case Commands.MembershipAction.REMOVE:
+                if current_membership is None:
+                    return (
+                        f"{"You are" if target_user == current_user else f"{target_user.name} is"} "
+                        f"not a member of group _{name}_."
+                    )
+                if current_membership.protected:
+                    return f"{target_user.name} may not be removed from group _{name}_."
+                await self.db.groupmembership.delete(
+                    where={
+                        "user_id_group_name": {
+                            "group_name": name,
+                            "user_id": target_user.id
+                        }
+                    }
+                )
+                return f"Removed {"you" if target_user == current_user else target_user.name} from group _{name}_."
+    
+    async def group_manager_command(self, target: str, action: MembershipAction, manager: str, *, current_user: User):
+        if (
+            target_group := await self.db.group.find_unique(
+                where={"name": target}, include={"is_managed_by": True}
+            )
+        ) is None:
+            return f"There is no group named _{target}_."
+        if (
+            manager_group := await self.db.group.find_unique(
+                where={"name": manager}
+            )
+        ) is None:
+            return f"There is no group named _{manager}_."
+        assert current_user.groups is not None
+        assert target_group.is_managed_by is not None
+
+        match self.can_user_manage(current_user, manager_group):
+            case (True, _):
+                pass
+            case (False, str(error)):
+                return error
+        match self.can_user_manage(current_user, target_group):
+            case (True, _):
+                pass
+            case (False, str(error)):
+                return error
+
+        match action:
+            case Commands.MembershipAction.ADD:
+                if manager_group in target_group.is_managed_by:
+                    return f"_{manager}_ is already managing _{target}_."
+                await self.db.group.update(
+                    data={
+                        "is_managed_by": {
+                            "connect": [{
+                                "name": manager
+                            }]
+                        }
+                    },
+                    where={"name": target}
+                )
+                return f"_{manager}_ is now managing _{target}_."
+            case Commands.MembershipAction.REMOVE:
+                if manager_group not in target_group.is_managed_by:
+                    return f"_{manager}_ is not managing _{target}_."
+                await self.db.group.update(
+                    data={
+                        "is_managed_by": {
+                            "disconnect": [{
+                                "name": manager
+                            }]
+                        }
+                    },
+                    where={"name": target}
+                )
+                return f"_{manager}_ is no longer managing _{target}_."
