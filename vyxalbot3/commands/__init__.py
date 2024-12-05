@@ -31,6 +31,7 @@ ARGUMENT_TYPE_SIGNATURES = {
     list[str]: ArgumentType.STRARRAY,
 }
 IGNORED_PARAMETERS = ("self", "event", "current_user")
+COMMAND_FUNCTION_SUFFIX = "_command"
 
 PREFIX = "!!/"
 
@@ -46,9 +47,9 @@ class Commands:
         self.commands: dict[str, CommandTree] = {}
 
         for method_name, method in inspect.getmembers(self, inspect.ismethod):
-            if not method_name.endswith("_command"):
+            if not method_name.endswith(COMMAND_FUNCTION_SUFFIX):
                 continue
-            path = method_name.removesuffix("_command").split("_")
+            path = method_name.removesuffix(COMMAND_FUNCTION_SUFFIX).split("_")
             parent: dict[str, CommandTree] = self.commands
             while len(path) > 1:
                 node = path.pop(0)
@@ -132,6 +133,16 @@ class Commands:
         if isinstance(command, dict):
             parent_name = " ".join(a[1] for a in arguments if a[0] == ArgumentType.FLAG)
             return f"Subcommands of !!/{parent_name} are: {", ".join(command.keys())}"
+
+        assert current_user.groups is not None
+        permissions = await self.db.commandpermission.find_many(
+            where={"command": command.__name__.removesuffix(COMMAND_FUNCTION_SUFFIX).replace("_", " ")}
+        )
+        allowed_groups = set(permission.group_name for permission in permissions)
+        if len(allowed_groups) and not len(
+            set(group.group_name for group in current_user.groups) & allowed_groups
+        ):
+            return f"Only members of groups {" | ".join(f"_{name}_" for name in allowed_groups)} may run that command."
 
         argument_values = []
         parameters = inspect.signature(command).parameters
@@ -406,7 +417,7 @@ class Commands:
             else "(none)"
         )
         return (
-            f"Group information of {name}:\n"
+            f"Group information for {name}:\n"
             f"- Members: {members}\n"
             f"- Allowed commands: {allowed_commands}"
         )
@@ -526,3 +537,40 @@ class Commands:
                     where={"name": target},
                 )
                 return f"_{manager}_ is no longer managing _{target}_."
+
+    async def command_permission_command(
+        self, command: str, action: MembershipAction, group: str
+    ):
+        if (
+            await self.db.group.find_unique(
+                where={"name": group}, include={"is_managed_by": True}
+            )
+            is None
+        ):
+            return f"There is no group named _{group}_."
+
+        current_groups = [
+            permission.group_name
+            for permission in await self.db.commandpermission.find_many(
+                where={"command": command}
+            )
+        ]
+        match action:
+            case Commands.MembershipAction.ADD:
+                if group in current_groups:
+                    return f"`!!/{command}` is already usable by _{group}_."
+                await self.db.commandpermission.create(
+                    data={"command": command, "group": {"connect": {"name": group}}}
+                )
+                return f"`!!/{command}` is now usable by _{group}_."
+            case Commands.MembershipAction.REMOVE:
+                if group not in current_groups:
+                    return (
+                        f"`!!/{command}` is already not explicitly usable by _{group}_."
+                    )
+                await self.db.commandpermission.delete(
+                    where={
+                        "command_group_name": {"command": command, "group_name": group}
+                    }
+                )
+                return f"`!!/{command}` is no longer explicitly usable by _{group}_."

@@ -30,12 +30,15 @@ model GroupMembership {
 model Group {
     name             String               @id
     members          GroupMembership[]
-    allowed_commands CommandPermissions[]
+    allowed_commands CommandPermission[]
     can_manage       Group[]              @relation(name: "management")
     is_managed_by    Group[]              @relation(name: "management")
 }
 
-model CommandPermissions {
-    command        String  @id
-    allowed_groups Group[]
+model CommandPermission {
+    command        String
+    group Group @relation(fields: [group_name], references: [name])
+    group_name String
+
+    @@id([command, group_name])
 }
