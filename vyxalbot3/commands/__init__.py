@@ -587,7 +587,7 @@ class Commands:
         ) is None:
             return f"There is no group named _{target}_."
         if (
-            manager_group := await self.db.group.find_unique(where={"name": manager})
+            manager_group := await self.db.group.find_unique(where={"name": manager}, include={"is_managed_by": True})
         ) is None:
             return f"There is no group named _{manager}_."
         assert current_user.groups is not None
