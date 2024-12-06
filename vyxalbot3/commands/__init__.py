@@ -768,9 +768,50 @@ class Commands:
             f"\n\n_Issue created by [{event.user_name}]({self.room.server}/users/{event.user_id}) "
             f"[here]({self.room.server}/transcript/message/{event.message_id}${event.message_id})_"
         )
-        await self.gh.post(
-            f"/repos/{self.github_account}/{repository}/issues",
-            data={"title": title, "body": body, "labels": tags},
-            oauth_token=await self.app_token(),
-        )
+        try:
+            await self.gh.post(
+                f"/repos/{self.github_account}/{repository}/issues",
+                data={"title": title, "body": body, "labels": tags},
+                oauth_token=await self.app_token(),
+            )
+        except BadRequest as error:
+            return f"Failed to open issue: {error.args}"
+        return None
+
+    class IssueCloseType(Enum):
+        COMPLETED = "completed"
+        NOT_PLANNED = "not-planned"
+
+    async def issue_close_command(
+        self,
+        repository: str,
+        number: int,
+        close_type: IssueCloseType = IssueCloseType.COMPLETED,
+        body: str = "",
+        *,
+        event: MessageEvent,
+    ):
+        body = (
+            body
+            + (
+                f"\n\n_Issue closed by [{event.user_name}]({self.room.server}/users/{event.user_id}) "
+                f"[here]({self.room.server}/transcript/message/{event.message_id}${event.message_id})_"
+            )
+        ).strip()
+        try:
+            await self.gh.post(
+                f"/repos/{self.github_account}/{repository}/issues/{number}/comments",
+                data={"body": body},
+                oauth_token=await self.app_token(),
+            )
+        except BadRequest as error:
+            return f"Failed to post close comment: {error.args}"
+        try:
+            await self.gh.patch(
+                f"/repos/{self.github_account}/{repository}/issues/{number}",
+                data={"state": "closed", "state_reason": close_type.name.lower()},
+                oauth_token=await self.app_token(),
+            )
+        except BadRequest as error:
+            return f"Failed to close issue: {error.args}"
         return None
