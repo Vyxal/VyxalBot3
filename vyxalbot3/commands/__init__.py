@@ -380,8 +380,9 @@ class Commands:
             return True, None
         assert group.is_managed_by is not None
         if len(group.is_managed_by) and not len(
-            set(group.is_managed_by) & set(user.groups)
+            set(group.name for group in group.is_managed_by) & set(group.group_name for group in user.groups)
         ):
+            assert group.is_managed_by is not None
             return False, (
                 f"You are not allowed to modify this group. Only members of groups "
                 f"{" | ".join(f"_{group.name}_" for group in group.is_managed_by)} "
