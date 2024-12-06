@@ -194,6 +194,8 @@ class Commands:
                 argument_values.append(parameter.default)
             else:
                 return f"Argument `{parameter_name}` not provided, expected a value of type **{expected_type.name}**"
+        if len(arguments):
+            return f"Superfluous arguments supplied starting at `{arguments[0][1]}`."
         keyword_args = {}
         if "event" in parameters:
             keyword_args["event"] = event
