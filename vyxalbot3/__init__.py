@@ -1,6 +1,8 @@
 from asyncio import TaskGroup
 from logging import getLogger
+from aiohttp import ClientSession
 from aiohttp.web import Application, AppRunner, TCPSite, post, get, Response
+from gidgethub.aiohttp import GitHubAPI
 from prisma import Prisma
 from sechat import Credentials, Room
 
@@ -25,8 +27,9 @@ async def main(settings: Settings):
         settings.chat.password,
         server=settings.chat.server,
     )
-    async with await Room.join(credentials, settings.chat.room) as room:
-        commands = Commands(room, db)
+    async with await Room.join(credentials, settings.chat.room) as room, ClientSession() as session:
+        gh = GitHubAPI(session, settings.github.account)
+        commands = Commands(room, db, gh, settings.github.app_id, settings.github.account, settings.github.private_key)
         webhook = GitHubWebhookReporter(room, settings.webhook.secret, set())
         app.add_routes(
             [

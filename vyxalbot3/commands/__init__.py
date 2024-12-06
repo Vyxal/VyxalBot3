@@ -1,14 +1,18 @@
+from datetime import datetime
 import inspect
 import random
 import re
 from enum import Enum, EnumType
 from logging import getLogger
 from types import NoneType, UnionType
-from typing import TYPE_CHECKING, Awaitable, Callable, cast
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, cast
 
 from aiohttp import ClientSession
 from asciitree import LeftAligned, BoxStyle
 from asciitree.drawing import BOX_LIGHT
+from gidgethub import BadRequest
+from gidgethub.aiohttp import GitHubAPI
+from gidgethub.apps import get_jwt as get_github_jwt
 from prisma import Prisma
 from prisma.models import User, Group
 from prisma.errors import RecordNotFoundError
@@ -18,6 +22,7 @@ from uwuipy import Uwuipy
 
 from vyxalbot3.commands.messages import *
 from vyxalbot3.commands.parser import ArgumentType, parse_arguments
+from vyxalbot3.util import autocache
 
 if TYPE_CHECKING:
     from vyxalbot3.commands.parser import Argument
@@ -43,9 +48,13 @@ ADMIN_GROUP = "admin"
 class Commands:
     logger = getLogger("commands")
 
-    def __init__(self, room: Room, db: Prisma):
+    def __init__(self, room: Room, db: Prisma, gh: GitHubAPI, app_id: int, github_account: str, private_key: str):
         self.room = room
         self.db = db
+        self.gh = gh
+        self.app_id = app_id
+        self.github_account = github_account
+        self.private_key = private_key
         self.commands: dict[str, CommandTree] = {}
 
         for method_name, method in inspect.getmembers(self, inspect.ismethod):
@@ -202,6 +211,8 @@ class Commands:
         if "current_user" in parameters:
             keyword_args["current_user"] = current_user
         return await command(*argument_values, **keyword_args)
+
+    # Help commands
 
     async def help_command(self, name: str | None = None):
         """Display parameters and help for a command."""
@@ -711,3 +722,30 @@ class Commands:
         if message is not None:
             return f"{ping} {message}"
         return ping
+
+    # GitHub interaction commands
+
+    @autocache
+    async def app_token(self):
+        jwt = get_github_jwt(app_id=str(self.app_id), private_key=self.private_key)
+        async for installation in self.gh.getiter("/app/installations", jwt=jwt):
+            if installation["account"]["login"] == self.github_account:
+                token_payload = cast(dict[str, Any], await self.gh.post(
+                    f"/app/installations/{installation["id"]}/access_tokens",
+                    data=b"",
+                    jwt=jwt,
+                ))
+                return (datetime.fromisoformat(token_payload["expires_at"]), token_payload["token"])
+        raise Exception(f"Could not find installation named {self.github_account}")
+
+    async def issue_open_command(self, repository: str, title: str, body: str = "", tags: list[str] = [], *, event: MessageEvent):
+        body = body + (
+            f"\n\n_Issue created by [{event.user_name}]({self.room.server}/users/{event.user_id}) "
+            f"[here]({self.room.server}/transcript/message/{event.message_id}${event.message_id})_"
+        )
+        await self.gh.post(
+            f"/repos/{self.github_account}/{repository}/issues",
+            data={"title": title, "body": body, "labels": tags},
+            oauth_token=await self.app_token()
+        )
+        return None

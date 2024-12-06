@@ -11,6 +11,7 @@ class WebhookSettings(BaseModel):
 
 class GitHubSettings(BaseModel):
     app_id: int
+    account: str
     private_key: str
 
 
