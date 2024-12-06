@@ -691,7 +691,7 @@ class Commands:
 
     # Utility commands
 
-    async def ping(self, group_name: str, message: str | None = None):
+    async def ping_command(self, group_name: str, message: str | None = None):
         """Ping every member of a group. Use this feature with caution."""
         if (
             group := await self.db.group.find_unique(
