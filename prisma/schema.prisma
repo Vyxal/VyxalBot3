@@ -18,7 +18,7 @@ model User {
 
 model GroupMembership {
     user       User   @relation(fields: [user_id], references: [id])
-    group      Group  @relation(fields: [group_name], references: [name])
+    group      Group  @relation(fields: [group_name], references: [name], onDelete: Cascade)
     user_id    Int
     group_name String
 
@@ -37,7 +37,7 @@ model Group {
 
 model CommandPermission {
     command        String
-    group Group @relation(fields: [group_name], references: [name])
+    group Group @relation(fields: [group_name], references: [name], onDelete: Cascade)
     group_name String
 
     @@id([command, group_name])
