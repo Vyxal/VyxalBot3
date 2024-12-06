@@ -671,6 +671,8 @@ class Commands:
 
     async def trick_upsert_command(self, name: str, body: str):
         """Add a text trick. If a trick with the same name exists, it will be replaced."""
+        if not len(body):
+            return "Tricks cannot be empty."
         await self.db.trick.upsert(
             where={"name": name},
             data={"create": {"name": name, "body": body}, "update": {"body": body}},
