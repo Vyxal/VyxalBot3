@@ -48,7 +48,15 @@ ADMIN_GROUP = "admin"
 class Commands:
     logger = getLogger("commands")
 
-    def __init__(self, room: Room, db: Prisma, gh: GitHubAPI, app_id: int, github_account: str, private_key: str):
+    def __init__(
+        self,
+        room: Room,
+        db: Prisma,
+        gh: GitHubAPI,
+        app_id: int,
+        github_account: str,
+        private_key: str,
+    ):
         self.room = room
         self.db = db
         self.gh = gh
@@ -391,7 +399,8 @@ class Commands:
             return True, None
         assert group.is_managed_by is not None
         if len(group.is_managed_by) and not len(
-            set(group.name for group in group.is_managed_by) & set(group.group_name for group in user.groups)
+            set(group.name for group in group.is_managed_by)
+            & set(group.group_name for group in user.groups)
         ):
             assert group.is_managed_by is not None
             return False, (
@@ -599,7 +608,9 @@ class Commands:
         ) is None:
             return f"There is no group named _{target}_."
         if (
-            manager_group := await self.db.group.find_unique(where={"name": manager}, include={"is_managed_by": True})
+            manager_group := await self.db.group.find_unique(
+                where={"name": manager}, include={"is_managed_by": True}
+            )
         ) is None:
             return f"There is no group named _{manager}_."
         assert current_user.groups is not None
@@ -730,15 +741,29 @@ class Commands:
         jwt = get_github_jwt(app_id=str(self.app_id), private_key=self.private_key)
         async for installation in self.gh.getiter("/app/installations", jwt=jwt):
             if installation["account"]["login"] == self.github_account:
-                token_payload = cast(dict[str, Any], await self.gh.post(
-                    f"/app/installations/{installation["id"]}/access_tokens",
-                    data=b"",
-                    jwt=jwt,
-                ))
-                return (datetime.fromisoformat(token_payload["expires_at"]), token_payload["token"])
+                token_payload = cast(
+                    dict[str, Any],
+                    await self.gh.post(
+                        f"/app/installations/{installation["id"]}/access_tokens",
+                        data=b"",
+                        jwt=jwt,
+                    ),
+                )
+                return (
+                    datetime.fromisoformat(token_payload["expires_at"]),
+                    token_payload["token"],
+                )
         raise Exception(f"Could not find installation named {self.github_account}")
 
-    async def issue_open_command(self, repository: str, title: str, body: str = "", tags: list[str] = [], *, event: MessageEvent):
+    async def issue_open_command(
+        self,
+        repository: str,
+        title: str,
+        body: str = "",
+        tags: list[str] = [],
+        *,
+        event: MessageEvent,
+    ):
         body = body + (
             f"\n\n_Issue created by [{event.user_name}]({self.room.server}/users/{event.user_id}) "
             f"[here]({self.room.server}/transcript/message/{event.message_id}${event.message_id})_"
@@ -746,6 +771,6 @@ class Commands:
         await self.gh.post(
             f"/repos/{self.github_account}/{repository}/issues",
             data={"title": title, "body": body, "labels": tags},
-            oauth_token=await self.app_token()
+            oauth_token=await self.app_token(),
         )
         return None

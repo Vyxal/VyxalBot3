@@ -33,15 +33,24 @@ from typing import Awaitable, Callable, Coroutine, overload, Any
 #             self._value = ret
 #         return self._value[1]
 
-@overload
-def autocache[**P, R](method: Callable[P, tuple[datetime, R]]) -> Callable[P, R]:
-    ...
 
 @overload
-def autocache[**P, R](method: Callable[P, Coroutine[Any, Any, tuple[datetime, R]]]) -> Callable[P, Coroutine[Any, Any, R]]:
-    ...
+def autocache[**P, R](method: Callable[P, tuple[datetime, R]]) -> Callable[P, R]: ...
 
-def autocache[**P, R](method: Callable[P, tuple[datetime, R] | Coroutine[Any, Any, tuple[datetime, R]]]) -> Callable[P, R | Coroutine[Any, Any, R]]:
+
+@overload
+def autocache[
+    **P, R
+](method: Callable[P, Coroutine[Any, Any, tuple[datetime, R]]]) -> Callable[
+    P, Coroutine[Any, Any, R]
+]: ...
+
+
+def autocache[
+    **P, R
+](
+    method: Callable[P, tuple[datetime, R] | Coroutine[Any, Any, tuple[datetime, R]]]
+) -> Callable[P, R | Coroutine[Any, Any, R]]:
     value: tuple[datetime, R] | None = None
 
     async def _store(ret: Awaitable[tuple[datetime, R]]) -> R:
@@ -56,5 +65,5 @@ def autocache[**P, R](method: Callable[P, tuple[datetime, R] | Coroutine[Any, An
                 return _store(ret)
             value = ret
         return value[1]
-    
+
     return _wrapper
