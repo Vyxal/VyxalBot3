@@ -7,6 +7,7 @@ from prisma import Prisma
 from sechat import Credentials, Room
 
 from vyxalbot3.commands import Commands
+from vyxalbot3.github import AppGitHubAPI
 from vyxalbot3.github.webhook import GitHubWebhookReporter
 from vyxalbot3.settings import Settings
 
@@ -30,16 +31,9 @@ async def main(settings: Settings):
     async with await Room.join(
         credentials, settings.chat.room
     ) as room, ClientSession() as session:
-        gh = GitHubAPI(session, settings.github.account)
-        commands = Commands(
-            room,
-            db,
-            gh,
-            settings.github.app_id,
-            settings.github.account,
-            settings.github.private_key,
-        )
-        webhook = GitHubWebhookReporter(room, settings.webhook.secret, set())
+        gh = AppGitHubAPI(session, settings.github.account, str(settings.github.app_id), settings.github.private_key)
+        commands = Commands(room, db, gh)
+        webhook = GitHubWebhookReporter(room, db, gh, settings.webhook.secret, set())
         app.add_routes(
             [
                 get("/", _index),

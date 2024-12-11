@@ -11,7 +11,14 @@ from gidgethub.routing import Router
 from gidgethub.sansio import Event
 from sechat import Room
 
+from prisma import Prisma
+from prisma.enums import AutolabelRuleType
+from vyxalbot3.github import AppGitHubAPI
 from vyxalbot3.github.formatters import *
+
+LINKED_ISSUE_REGEX = (
+    r"(([Cc]lose[sd]?)|([Ff]ix(e[sd])?)|([Rr]esolve[sd]?)) #(?P<number>\d+)"
+)
 
 
 class GitHubWebhookReporter:
@@ -20,11 +27,13 @@ class GitHubWebhookReporter:
 
     @staticmethod
     def handler(
-        func: Callable[[Event, Room], AsyncGenerator[str | tuple[str, int], int]]
+        func: Callable[
+            ["GitHubWebhookReporter", Event], AsyncGenerator[str | tuple[str, int], int]
+        ]
     ) -> Callable[[Event, "GitHubWebhookReporter"], Awaitable[None]]:
         @wraps(func)
         async def _wrapper(event: Event, self: "GitHubWebhookReporter"):
-            generator = func(event, self.room)
+            generator = func(self, event)
             message = await anext(generator)
             while True:
                 try:
@@ -38,8 +47,17 @@ class GitHubWebhookReporter:
 
         return _wrapper
 
-    def __init__(self, room: Room, webhook_secret: str, ignored_repositories: set[str]):
+    def __init__(
+        self,
+        room: Room,
+        db: Prisma,
+        gh: AppGitHubAPI,
+        webhook_secret: str,
+        ignored_repositories: set[str],
+    ):
         self.room = room
+        self.db = db
+        self.gh = gh
         self.webhook_secret = webhook_secret
         self.ignored_repositories = ignored_repositories
 
@@ -66,10 +84,37 @@ class GitHubWebhookReporter:
             return Response(status=500)
         return Response(status=200)
 
+    async def label_pr(self, repository: str, pr: dict):
+        rules = await self.db.autolabelrule.find_many(where={"repository": repository})
+        labels_to_add = set()
+
+        for rule in rules:
+            if rule.type == AutolabelRuleType.BRANCH_NAME and re.fullmatch(rule.match, pr["head"]["ref"]):
+                labels_to_add.add(rule.label)
+
+        if pr["body"] is not None:
+            linked_issue_rules = {rule.match: rule.label for rule in rules if rule.type == AutolabelRuleType.LINKED_ISSUE}
+            for match in re.finditer(LINKED_ISSUE_REGEX, pr["body"]):
+                try:
+                    issue = await self.gh.getitem(
+                        f"/repos/{self.gh.requester}/{repository}/issues/{int(match.group("number"))}",
+                        oauth_token=await self.gh.app_token(),
+                    )
+                except BadRequest:
+                    continue
+                for label in issue["labels"]:
+                    if label["name"] in linked_issue_rules:
+                        labels_to_add.add(linked_issue_rules[label["name"]])
+
+        await self.gh.patch(
+            f"/repos/{self.gh.requester}/{repository}/issues/{pr["number"]}",
+            data={"labels": list(labels_to_add)},
+            oauth_token=await self.gh.app_token(),
+        )
+
     @router.register("push")
     @handler
-    @staticmethod
-    async def on_push(event: Event, room: Room):
+    async def on_push(self, event: Event):
         if event.data["ref"].split("/")[1] != "heads":
             return
         repository = repository_link(event.data["repository"])
@@ -100,8 +145,7 @@ class GitHubWebhookReporter:
 
     @router.register("issues")
     @handler
-    @staticmethod
-    async def on_issue(event: Event, room: Room):
+    async def on_issue(self, event: Event):
         issue = issue_link(event.data["issue"])
         sender = user_link(event.data["sender"])
         repository = repository_link(event.data["repository"])
@@ -118,8 +162,7 @@ class GitHubWebhookReporter:
 
     @router.register("pull_request")
     @handler
-    @staticmethod
-    async def on_pull_request(event: Event, room: Room):
+    async def on_pull_request(self, event: Event):
         pr = issue_link(event.data["pull_request"])
         sender = user_link(event.data["sender"])
         repository = repository_link(event.data["repository"])
@@ -137,13 +180,16 @@ class GitHubWebhookReporter:
                 )
             case "ready_for_review":
                 yield f"{sender} marked pull request {pr} in {repository} as ready for review"
-            case "opened" | "reopened" | "enqueued":
+            case "opened" | "reopened" | "enqueued" as action:
+                if action == "opened":
+                    await self.label_pr(
+                        event.data["repository"]["name"], event.data["pull_request"]
+                    )
                 yield f"{sender} {event.data["action"]} pull request {pr} in {repository}"
 
     @router.register("pull_request_review", action="submitted")
     @handler
-    @staticmethod
-    async def on_review_submitted(event: Event, room: Room):
+    async def on_review_submitted(self, event: Event):
         sender = user_link(event.data["sender"])
         repository = repository_link(event.data["repository"])
         pr = issue_link(event.data["pull_request"])
@@ -167,16 +213,14 @@ class GitHubWebhookReporter:
     @router.register("create")
     @router.register("delete")
     @handler
-    @staticmethod
-    async def on_ref_change(event: Event, room: Room):
+    async def on_ref_change(self, event: Event):
         sender = user_link(event.data["sender"])
         repository = repository_link(event.data["repository"])
         yield f"{sender} {event.event}d {event.data["ref_type"]} {event.data["ref"]} in {repository}"
 
     @router.register("release", action="released")
     @handler
-    @staticmethod
-    async def on_release(event: Event, room: Room):
+    async def on_release(self, event: Event):
         release = event.data["release"]
         release_name = release["name"].lower()
         # attempt to match version number, otherwise default to the whole name
@@ -187,8 +231,7 @@ class GitHubWebhookReporter:
 
     @router.register("fork")
     @handler
-    @staticmethod
-    async def on_fork(event: Event, room: Room):
+    async def on_fork(self, event: Event):
         sender = user_link(event.data["sender"])
         repository = repository_link(event.data["repository"])
         forkee = repository_link(event.data["forkee"])
@@ -196,8 +239,7 @@ class GitHubWebhookReporter:
 
     @router.register("repository")
     @handler
-    @staticmethod
-    async def on_repository(event: Event, room: Room):
+    async def on_repository(self, event: Event):
         sender = user_link(event.data["sender"])
         repository = repository_link(event.data["repository"])
         yield f"{sender} {event.data["action"]} repository {repository}"

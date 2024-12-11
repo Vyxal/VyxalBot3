@@ -28,16 +28,16 @@ model GroupMembership {
 }
 
 model Group {
-    name             String               @id
+    name             String              @id
     members          GroupMembership[]
     allowed_commands CommandPermission[]
-    can_manage       Group[]              @relation(name: "management")
-    is_managed_by    Group[]              @relation(name: "management")
+    can_manage       Group[]             @relation(name: "management")
+    is_managed_by    Group[]             @relation(name: "management")
 }
 
 model CommandPermission {
-    command        String
-    group Group @relation(fields: [group_name], references: [name], onDelete: Cascade)
+    command    String
+    group      Group  @relation(fields: [group_name], references: [name], onDelete: Cascade)
     group_name String
 
     @@id([command, group_name])
@@ -46,4 +46,21 @@ model CommandPermission {
 model Trick {
     name String @id
     body String
+}
+
+model AutolabelRule {
+    id         String            @id @default(cuid())
+    type       AutolabelRuleType
+    repository String
+
+    match String
+    label String
+
+    @@index([repository, type])
+    @@unique([repository, type, match, label])
+}
+
+enum AutolabelRuleType {
+    LINKED_ISSUE
+    BRANCH_NAME
 }

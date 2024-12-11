@@ -1,28 +1,26 @@
-from datetime import datetime
 import inspect
 import random
 import re
 from enum import Enum, EnumType
 from logging import getLogger
 from types import NoneType, UnionType
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, cast
+from typing import TYPE_CHECKING, Awaitable, Callable, cast
 
 from aiohttp import ClientSession
-from asciitree import LeftAligned, BoxStyle
+from asciitree import BoxStyle, LeftAligned
 from asciitree.drawing import BOX_LIGHT
 from gidgethub import BadRequest
-from gidgethub.aiohttp import GitHubAPI
-from gidgethub.apps import get_jwt as get_github_jwt
-from prisma import Prisma
-from prisma.models import User, Group
-from prisma.errors import RecordNotFoundError
+from prisma.errors import RecordNotFoundError, UniqueViolationError
+from prisma.models import Group, User
 from sechat import Room
 from sechat.events import MessageEvent
 from uwuipy import Uwuipy
 
+from prisma import Prisma
+from prisma.enums import AutolabelRuleType
 from vyxalbot3.commands.messages import *
 from vyxalbot3.commands.parser import ArgumentType, parse_arguments
-from vyxalbot3.util import autocache
+from vyxalbot3.github import AppGitHubAPI
 
 if TYPE_CHECKING:
     from vyxalbot3.commands.parser import Argument
@@ -52,17 +50,11 @@ class Commands:
         self,
         room: Room,
         db: Prisma,
-        gh: GitHubAPI,
-        app_id: int,
-        github_account: str,
-        private_key: str,
+        gh: AppGitHubAPI
     ):
         self.room = room
         self.db = db
         self.gh = gh
-        self.app_id = app_id
-        self.github_account = github_account
-        self.private_key = private_key
         self.commands: dict[str, CommandTree] = {}
 
         for method_name, method in inspect.getmembers(self, inspect.ismethod):
@@ -736,25 +728,6 @@ class Commands:
 
     # GitHub interaction commands
 
-    @autocache
-    async def app_token(self):
-        jwt = get_github_jwt(app_id=str(self.app_id), private_key=self.private_key)
-        async for installation in self.gh.getiter("/app/installations", jwt=jwt):
-            if installation["account"]["login"] == self.github_account:
-                token_payload = cast(
-                    dict[str, Any],
-                    await self.gh.post(
-                        f"/app/installations/{installation["id"]}/access_tokens",
-                        data=b"",
-                        jwt=jwt,
-                    ),
-                )
-                return (
-                    datetime.fromisoformat(token_payload["expires_at"]),
-                    token_payload["token"],
-                )
-        raise Exception(f"Could not find installation named {self.github_account}")
-
     async def issue_open_command(
         self,
         repository: str,
@@ -770,9 +743,9 @@ class Commands:
         )
         try:
             await self.gh.post(
-                f"/repos/{self.github_account}/{repository}/issues",
+                f"/repos/{self.gh.requester}/{repository}/issues",
                 data={"title": title, "body": body, "labels": tags},
-                oauth_token=await self.app_token(),
+                oauth_token=await self.gh.app_token(),
             )
         except BadRequest as error:
             return f"Failed to open issue: {error.args}"
@@ -800,18 +773,49 @@ class Commands:
         ).strip()
         try:
             await self.gh.post(
-                f"/repos/{self.github_account}/{repository}/issues/{number}/comments",
+                f"/repos/{self.gh.requester}/{repository}/issues/{number}/comments",
                 data={"body": body},
-                oauth_token=await self.app_token(),
+                oauth_token=await self.gh.app_token(),
             )
         except BadRequest as error:
             return f"Failed to post close comment: {error.args}"
         try:
             await self.gh.patch(
-                f"/repos/{self.github_account}/{repository}/issues/{number}",
+                f"/repos/{self.gh.requester}/{repository}/issues/{number}",
                 data={"state": "closed", "state_reason": close_type.name.lower()},
-                oauth_token=await self.app_token(),
+                oauth_token=await self.gh.app_token(),
             )
         except BadRequest as error:
             return f"Failed to close issue: {error.args}"
         return None
+
+    # Autolabel rule management commands
+
+    async def autolabel_add_command(self, type: AutolabelRuleType, repository: str, match: str, label: str):
+        if type == AutolabelRuleType.BRANCH_NAME:
+            try:
+                re.compile(match)
+            except re.PatternError as error:
+                return f"Invalid regular expression for branch name match: {error.msg}"
+        try:
+            rule = await self.db.autolabelrule.create(data={
+                "repository": repository,
+                "type": type,
+                "match": match,
+                "label": label
+            })
+        except UniqueViolationError:
+            return "A rule with these parameters already exists."
+        return f"Autolabel rule `{rule.id}` created for repository {repository}."
+
+    async def autolabel_remove_command(self, id: str):
+        if await self.db.autolabelrule.delete(where={"id": id}) is None:
+            return "No autolabel rule exists with that ID."
+        return f"Autolabel rule `{id}` deleted."
+
+    async def autolabel_list_command(self, repository: str | None = None):
+        rules = await self.db.autolabelrule.find_many(where=({"repository": repository} if repository is not None else None))
+        lines = [f"Autolabel rules for repository {repository}:" if repository is not None else "Autolabel rules:"]
+        for rule in rules:
+            lines.append(f"- {rule.id} ({rule.type}): {rule.match} → {rule.label}")
+        return "\n".join(lines)
