@@ -9,10 +9,10 @@ from aiohttp.web import Request, Response
 from gidgethub import BadRequest, ValidationFailure
 from gidgethub.routing import Router
 from gidgethub.sansio import Event
+from prisma.enums import AutolabelRuleType
 from sechat import Room
 
 from prisma import Prisma
-from prisma.enums import AutolabelRuleType
 from vyxalbot3.github import AppGitHubAPI
 from vyxalbot3.github.formatters import *
 

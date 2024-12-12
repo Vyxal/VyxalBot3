@@ -1,6 +1,6 @@
 import os.path
 from enum import Enum, auto
-from typing import Literal, cast
+from typing import Literal
 
 from lark import Lark, Transformer, UnexpectedCharacters, UnexpectedInput
 

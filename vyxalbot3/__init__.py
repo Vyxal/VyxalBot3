@@ -1,11 +1,11 @@
 from asyncio import TaskGroup
 from logging import getLogger
+
 from aiohttp import ClientSession
-from aiohttp.web import Application, AppRunner, TCPSite, post, get, Response
-from gidgethub.aiohttp import GitHubAPI
-from prisma import Prisma
+from aiohttp.web import Application, AppRunner, Response, TCPSite, get, post
 from sechat import Credentials, Room
 
+from prisma import Prisma
 from vyxalbot3.commands import Commands
 from vyxalbot3.github import AppGitHubAPI
 from vyxalbot3.github.webhook import GitHubWebhookReporter

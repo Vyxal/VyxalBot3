@@ -1,8 +1,8 @@
 import inspect
-from itertools import zip_longest
 import random
 import re
 from enum import Enum, EnumType
+from itertools import zip_longest
 from logging import getLogger
 from types import NoneType, UnionType
 from typing import TYPE_CHECKING, Awaitable, Callable, cast
@@ -11,6 +11,7 @@ from aiohttp import ClientSession
 from asciitree import BoxStyle, LeftAligned
 from asciitree.drawing import BOX_LIGHT
 from gidgethub import BadRequest
+from prisma.enums import AutolabelRuleType
 from prisma.errors import RecordNotFoundError, UniqueViolationError
 from prisma.models import Group, User
 from sechat import Room
@@ -18,7 +19,6 @@ from sechat.events import MessageEvent
 from uwuipy import Uwuipy
 
 from prisma import Prisma
-from prisma.enums import AutolabelRuleType
 from vyxalbot3.commands.messages import *
 from vyxalbot3.commands.parser import ArgumentType, ParseError, parse_arguments
 from vyxalbot3.github import AppGitHubAPI
