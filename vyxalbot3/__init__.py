@@ -31,7 +31,12 @@ async def main(settings: Settings):
     async with await Room.join(
         credentials, settings.chat.room
     ) as room, ClientSession() as session:
-        gh = AppGitHubAPI(session, settings.github.account, str(settings.github.app_id), settings.github.private_key)
+        gh = AppGitHubAPI(
+            session,
+            settings.github.account,
+            str(settings.github.app_id),
+            settings.github.private_key,
+        )
         commands = Commands(room, db, gh)
         webhook = GitHubWebhookReporter(room, db, gh, settings.webhook.secret, set())
         app.add_routes(

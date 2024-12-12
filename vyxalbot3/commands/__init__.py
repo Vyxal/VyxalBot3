@@ -47,12 +47,7 @@ ADMIN_GROUP = "admin"
 class Commands:
     logger = getLogger("commands")
 
-    def __init__(
-        self,
-        room: Room,
-        db: Prisma,
-        gh: AppGitHubAPI
-    ):
+    def __init__(self, room: Room, db: Prisma, gh: AppGitHubAPI):
         self.room = room
         self.db = db
         self.gh = gh
@@ -106,7 +101,9 @@ class Commands:
                         try:
                             arguments = parse_arguments(content.removeprefix(PREFIX))
                         except ParseError as error:
-                            await self.room.send(f"Parse error: {error.message}", event.message_id)
+                            await self.room.send(
+                                f"Parse error: {error.message}", event.message_id
+                            )
                         else:
                             match (
                                 await self.handle(
@@ -121,7 +118,11 @@ class Commands:
                                     await self.room.send(message, reply_to)
 
     async def handle(
-        self, event: MessageEvent, current_user: User, arguments: list["Argument"], explicit_arguments: dict[str, "Argument"]
+        self,
+        event: MessageEvent,
+        current_user: User,
+        arguments: list["Argument"],
+        explicit_arguments: dict[str, "Argument"],
     ):
         self.logger.debug(f"Handling command: {arguments}")
         command = self.commands
@@ -212,7 +213,9 @@ class Commands:
                         f"expected **{expected_type.name}** but got **{actual_type.name}**"
                     )
 
-        for parameter, argument in zip_longest(parameters.values(), arguments, fillvalue=None):
+        for parameter, argument in zip_longest(
+            parameters.values(), arguments, fillvalue=None
+        ):
             if argument is None:
                 break
             if parameter is None:
@@ -233,7 +236,10 @@ class Commands:
         for parameter in parameters.values():
             if parameter.name in IGNORED_PARAMETERS:
                 continue
-            if parameter.name not in argument_values and parameter.default is parameter.empty:
+            if (
+                parameter.name not in argument_values
+                and parameter.default is parameter.empty
+            ):
                 expected_type = expected_types[parameter.name]
                 return f"Argument `{parameter.name}` not provided, expected a value of type **{expected_type}**."
 
@@ -822,19 +828,23 @@ class Commands:
 
     # Autolabel rule management commands
 
-    async def autolabel_add_command(self, type: AutolabelRuleType, repository: str, match: str, label: str):
+    async def autolabel_add_command(
+        self, type: AutolabelRuleType, repository: str, match: str, label: str
+    ):
         if type == AutolabelRuleType.BRANCH_NAME:
             try:
                 re.compile(match)
             except re.PatternError as error:
                 return f"Invalid regular expression for branch name match: {error.msg}"
         try:
-            rule = await self.db.autolabelrule.create(data={
-                "repository": repository,
-                "type": type,
-                "match": match,
-                "label": label
-            })
+            rule = await self.db.autolabelrule.create(
+                data={
+                    "repository": repository,
+                    "type": type,
+                    "match": match,
+                    "label": label,
+                }
+            )
         except UniqueViolationError:
             return "A rule with these parameters already exists."
         return f"Autolabel rule `{rule.id}` created for repository {repository}."
@@ -845,8 +855,16 @@ class Commands:
         return f"Autolabel rule `{id}` deleted."
 
     async def autolabel_list_command(self, repository: str | None = None):
-        rules = await self.db.autolabelrule.find_many(where=({"repository": repository} if repository is not None else None))
-        lines = [f"Autolabel rules for repository {repository}:" if repository is not None else "Autolabel rules:"]
+        rules = await self.db.autolabelrule.find_many(
+            where=({"repository": repository} if repository is not None else None)
+        )
+        lines = [
+            (
+                f"Autolabel rules for repository {repository}:"
+                if repository is not None
+                else "Autolabel rules:"
+            )
+        ]
         for rule in rules:
             lines.append(f"- {rule.id} ({rule.type}): {rule.match} → {rule.label}")
         return "\n".join(lines)

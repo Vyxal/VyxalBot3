@@ -89,11 +89,17 @@ class GitHubWebhookReporter:
         labels_to_add = set()
 
         for rule in rules:
-            if rule.type == AutolabelRuleType.BRANCH_NAME and re.fullmatch(rule.match, pr["head"]["ref"]):
+            if rule.type == AutolabelRuleType.BRANCH_NAME and re.fullmatch(
+                rule.match, pr["head"]["ref"]
+            ):
                 labels_to_add.add(rule.label)
 
         if pr["body"] is not None:
-            linked_issue_rules = {rule.match: rule.label for rule in rules if rule.type == AutolabelRuleType.LINKED_ISSUE}
+            linked_issue_rules = {
+                rule.match: rule.label
+                for rule in rules
+                if rule.type == AutolabelRuleType.LINKED_ISSUE
+            }
             for match in re.finditer(LINKED_ISSUE_REGEX, pr["body"]):
                 try:
                     issue = await self.gh.getitem(

@@ -9,7 +9,9 @@ from vyxalbot3.util import autocache
 
 
 class AppGitHubAPI(GitHubAPI):
-    def __init__(self, session: ClientSession, account: str, app_id: str, private_key: str):
+    def __init__(
+        self, session: ClientSession, account: str, app_id: str, private_key: str
+    ):
         super().__init__(session, account)
         self.app_id = app_id
         self.private_key = private_key
