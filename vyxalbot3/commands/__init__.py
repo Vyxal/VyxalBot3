@@ -266,6 +266,8 @@ class Commands:
         for index, segment in enumerate(path):
             if segment not in help_target:
                 if index == 0:
+                    if await self.db.trick.find_unique(where={"name": segment}) is not None:
+                        return f"!!/{segment} is a trick."
                     return f'There is no command named "{segment}".'
                 parent_name = " ".join(path[:index])
                 return (
