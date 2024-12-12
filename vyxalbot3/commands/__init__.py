@@ -674,6 +674,10 @@ class Commands:
                 )
                 return f"_{manager}_ is no longer managing _{target}_."
 
+    async def group_list_command(self):
+        groups = await self.db.group.find_many()
+        return f"All groups: {" | ".join(f"_{group.name}_" for group in groups)}"
+
     async def command_permission_command(
         self, command: str, action: MembershipAction, group: str
     ):
