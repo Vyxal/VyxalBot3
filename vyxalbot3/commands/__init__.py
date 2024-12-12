@@ -878,5 +878,8 @@ class Commands:
             )
         ]
         for rule in rules:
-            lines.append(f"- {rule.id} ({rule.type}): {rule.match} → {rule.label}")
+            if repository is None:
+                lines.append(f"- {rule.id} ({rule.type} on {rule.repository}): {rule.match} → {rule.label}")
+            else:
+                lines.append(f"- {rule.id} ({rule.type}): {rule.match} → {rule.label}")
         return "\n".join(lines)
