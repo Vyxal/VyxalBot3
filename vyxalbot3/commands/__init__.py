@@ -675,6 +675,7 @@ class Commands:
                 return f"_{manager}_ is no longer managing _{target}_."
 
     async def group_list_command(self):
+        """List all groups."""
         groups = await self.db.group.find_many()
         return f"All groups: {" | ".join(f"_{group.name}_" for group in groups)}"
 
@@ -778,6 +779,7 @@ class Commands:
         *,
         event: MessageEvent,
     ):
+        """Open an issue in a GitHub repository."""
         body = body + (
             f"\n\n_Issue created by [{event.user_name}]({self.room.server}/users/{event.user_id}) "
             f"[here]({self.room.server}/transcript/message/{event.message_id}${event.message_id})_"
@@ -805,6 +807,7 @@ class Commands:
         *,
         event: MessageEvent,
     ):
+        """Close an issue in a GitHub repository."""
         body = (
             body
             + (
@@ -835,6 +838,9 @@ class Commands:
     async def autolabel_add_command(
         self, type: AutolabelRuleType, repository: str, match: str, label: str
     ):
+        """Add an autolabel rule. `linked_issue` rules will find issues linked with "Closed #<number>" and
+        apply `label` if one has a label named `match`. `branch_name` rules will use `match` as a regex
+        against the branch name of new pull requests."""
         if type == AutolabelRuleType.BRANCH_NAME:
             try:
                 re.compile(match)
@@ -854,11 +860,13 @@ class Commands:
         return f"Autolabel rule `{rule.id}` created for repository {repository}."
 
     async def autolabel_remove_command(self, id: str):
+        """Remove an autolabel rule."""
         if await self.db.autolabelrule.delete(where={"id": id}) is None:
             return "No autolabel rule exists with that ID."
         return f"Autolabel rule `{id}` deleted."
 
     async def autolabel_list_command(self, repository: str | None = None):
+        """List all autolabel rules, optionally filtering by repository."""
         rules = await self.db.autolabelrule.find_many(
             where=({"repository": repository} if repository is not None else None)
         )
