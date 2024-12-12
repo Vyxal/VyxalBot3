@@ -1,0 +1,20 @@
+command: arguments explicit_arguments
+arguments: argument+
+explicit_arguments: explicit_argument*
+explicit_argument: BAREWORD ":" argument
+argument: BAREWORD -> bareword
+        | ESCAPED_STRING -> string
+        | DECIMAL -> float
+        | INT -> int
+        | strarray
+strarray: "[" BAREWORD* "]"
+
+_STRING_INNER: /.*?/s
+_STRING_ESC_INNER: _STRING_INNER /(?<!\\)(\\\\)*?/
+ESCAPED_STRING : "\"" _STRING_ESC_INNER "\""
+
+%import common.DECIMAL
+%import common.INT
+%import common.CNAME -> BAREWORD
+%import common.WS
+%ignore WS

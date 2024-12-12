@@ -1,4 +1,5 @@
 import inspect
+from itertools import zip_longest
 import random
 import re
 from enum import Enum, EnumType
@@ -19,7 +20,7 @@ from uwuipy import Uwuipy
 from prisma import Prisma
 from prisma.enums import AutolabelRuleType
 from vyxalbot3.commands.messages import *
-from vyxalbot3.commands.parser import ArgumentType, parse_arguments
+from vyxalbot3.commands.parser import ArgumentType, ParseError, parse_arguments
 from vyxalbot3.github import AppGitHubAPI
 
 if TYPE_CHECKING:
@@ -102,30 +103,30 @@ class Commands:
                             },
                             include={"groups": True},
                         )
-                        match (
-                            await self.handle(
-                                event,
-                                current_user,
-                                list(parse_arguments(content.removeprefix(PREFIX))),
-                            )
-                        ):
-                            case str(message):
-                                await self.room.send(message, event.message_id)
-                            case (message, reply_to):
-                                await self.room.send(message, reply_to)
+                        try:
+                            arguments = parse_arguments(content.removeprefix(PREFIX))
+                        except ParseError as error:
+                            await self.room.send(f"Parse error: {error.message}", event.message_id)
+                        else:
+                            match (
+                                await self.handle(
+                                    event,
+                                    current_user,
+                                    *arguments,
+                                )
+                            ):
+                                case str(message):
+                                    await self.room.send(message, event.message_id)
+                                case (message, reply_to):
+                                    await self.room.send(message, reply_to)
 
     async def handle(
-        self, event: MessageEvent, current_user: User, arguments: list["Argument"]
+        self, event: MessageEvent, current_user: User, arguments: list["Argument"], explicit_arguments: dict[str, "Argument"]
     ):
         self.logger.debug(f"Handling command: {arguments}")
         command = self.commands
-        match arguments[0]:
-            case (ArgumentType.ERROR, message):
-                return f"Parsing error: {message}"
-            case (ArgumentType.FLAG, _):
-                pass
-            case _:
-                return None
+        if arguments[0][0] != ArgumentType.FLAG:
+            return None
         for index, argument in enumerate(arguments):
             if argument[0] != ArgumentType.FLAG:
                 break
@@ -167,11 +168,10 @@ class Commands:
         ):
             return f"Only members of groups {" | ".join(f"_{name}_" for name in allowed_groups)} may run that command."
 
-        argument_values = []
+        argument_values = {}
         parameters = inspect.signature(command).parameters
-        for parameter_name, parameter in parameters.items():
-            if parameter_name in IGNORED_PARAMETERS:
-                continue
+        expected_types: dict[str, ArgumentType] = {}
+        for parameter in parameters.values():
             if isinstance(parameter.annotation, EnumType):
                 expected_type = ArgumentType.FLAG
             elif isinstance(parameter.annotation, UnionType):
@@ -182,46 +182,66 @@ class Commands:
                 ]
             else:
                 expected_type = ARGUMENT_TYPE_SIGNATURES[parameter.annotation]
-            if len(arguments):
-                match arguments.pop(0):
-                    case (ArgumentType.ERROR, message):
-                        return f"Parsing error: {message}"
-                    case (
-                        ArgumentType.FLAG,
-                        name,
-                    ) if expected_type == ArgumentType.FLAG:
-                        assert isinstance(parameter.annotation, EnumType)
-                        try:
-                            argument_values.append(parameter.annotation(name))
-                        except ValueError:
-                            values = "/".join(
-                                item.value
-                                for item in list(parameter.annotation)
-                                if isinstance(item, Enum)
-                            )
-                            return (
-                                f"Invalid value supplied for argument `{parameter_name}`; "
-                                f"expected one of {values}."
-                            )
-                    case (argument_type, value) if expected_type == argument_type:
-                        argument_values.append(value)
-                    case (actual_type, _):
-                        return (
-                            f"Incorrect type supplied for argument `{parameter_name}`; "
-                            f"expected **{expected_type.name}** but got **{actual_type.name}**"
+            expected_types[parameter.name] = expected_type
+
+        def _set_argument(parameter: inspect.Parameter, argument: "Argument"):
+            expected_type = expected_types[parameter.name]
+            match argument:
+                case (
+                    ArgumentType.FLAG,
+                    name,
+                ) if expected_type == ArgumentType.FLAG:
+                    assert isinstance(parameter.annotation, EnumType)
+                    try:
+                        argument_values[parameter.name] = parameter.annotation(name)
+                    except ValueError:
+                        values = "/".join(
+                            item.value
+                            for item in list(parameter.annotation)
+                            if isinstance(item, Enum)
                         )
-            elif parameter.default is not parameter.empty:
-                argument_values.append(parameter.default)
-            else:
-                return f"Argument `{parameter_name}` not provided, expected a value of type **{expected_type.name}**"
-        if len(arguments):
-            return f"Superfluous arguments supplied starting at `{arguments[0][1]}`."
-        keyword_args = {}
+                        return (
+                            f"Invalid value supplied for argument `{parameter.name}`; "
+                            f"expected one of {values}."
+                        )
+                case (argument_type, value) if expected_type == argument_type:
+                    argument_values[parameter.name] = value
+                case (actual_type, _):
+                    return (
+                        f"Incorrect type supplied for argument `{parameter.name}`; "
+                        f"expected **{expected_type.name}** but got **{actual_type.name}**"
+                    )
+
+        for parameter, argument in zip_longest(parameters.values(), arguments, fillvalue=None):
+            if argument is None:
+                break
+            if parameter is None:
+                return f"Superfluous arguments supplied starting at `{argument[1]}`."
+            if parameter.name in IGNORED_PARAMETERS:
+                continue
+            if (error := _set_argument(parameter, argument)) is not None:
+                return error
+        for argument_name, argument in explicit_arguments.items():
+            if argument_name in IGNORED_PARAMETERS:
+                return f"Illegal argument `{argument_name}` supplied."
+            if argument_name in argument_values:
+                return f"Multiple values supplied for argument `{argument_name}`."
+            if (parameter := parameters.get(argument_name)) is None:
+                return f"Unknown argument `{argument_name}` supplied."
+            if (error := _set_argument(parameter, argument)) is not None:
+                return error
+        for parameter in parameters.values():
+            if parameter.name in IGNORED_PARAMETERS:
+                continue
+            if parameter.name not in argument_values and parameter.default is parameter.empty:
+                expected_type = expected_types[parameter.name]
+                return f"Argument `{parameter.name}` not provided, expected a value of type **{expected_type}**."
+
         if "event" in parameters:
-            keyword_args["event"] = event
+            argument_values["event"] = event
         if "current_user" in parameters:
-            keyword_args["current_user"] = current_user
-        return await command(*argument_values, **keyword_args)
+            argument_values["current_user"] = current_user
+        return await command(**argument_values)
 
     # Help commands
 
