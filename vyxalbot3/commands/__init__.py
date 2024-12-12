@@ -191,7 +191,18 @@ class Commands:
                         name,
                     ) if expected_type == ArgumentType.FLAG:
                         assert isinstance(parameter.annotation, EnumType)
-                        argument_values.append(parameter.annotation(name))
+                        try:
+                            argument_values.append(parameter.annotation(name))
+                        except ValueError:
+                            values = "/".join(
+                                item.value
+                                for item in list(parameter.annotation)
+                                if isinstance(item, Enum)
+                            )
+                            return (
+                                f"Invalid value supplied for argument `{parameter_name}`; "
+                                f"expected one of {values}."
+                            )
                     case (argument_type, value) if expected_type == argument_type:
                         argument_values.append(value)
                     case (actual_type, _):
