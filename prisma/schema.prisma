@@ -61,6 +61,6 @@ model AutolabelRule {
 }
 
 enum AutolabelRuleType {
-    LINKED_ISSUE
-    BRANCH_NAME
+    linked_issue @map("LINKED_ISSUE")
+    branch_name @map("BRANCH_NAME")
 }
