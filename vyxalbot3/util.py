@@ -72,7 +72,7 @@ async def get_message_room(
 
 
 async def get_messages_between(
-    session: ClientSession, server: Server, room: int, start: int, end: int
+    session: ClientSession, server: Server, fkey: str, room: int, start: int, end: int
 ):
     before = end
     yield end

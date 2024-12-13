@@ -812,6 +812,7 @@ class Commands:
                 async for i in get_messages_between(
                     session,
                     self.room.server,
+                    self.room._fkey,
                     self.room.room_id,
                     start_message,
                     end_message,
