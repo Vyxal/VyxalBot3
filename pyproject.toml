@@ -17,6 +17,7 @@ uwuipy = "^0.1.9"
 prisma = "^0.15.0"
 asciitree = "^0.3.3"
 lark = "^1.2.2"
+bs4 = "^0.0.2"
 
 
 [tool.poetry.group.dev.dependencies]

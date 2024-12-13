@@ -1,7 +1,7 @@
-from datetime import date
 import inspect
 import random
 import re
+from datetime import date
 from enum import Enum, EnumType
 from itertools import zip_longest
 from logging import getLogger
@@ -24,6 +24,8 @@ from vyxalbot3.commands.messages import *
 from vyxalbot3.commands.parser import ArgumentType, ParseError, parse_arguments
 from vyxalbot3.github import AppGitHubAPI
 from vyxalbot3.settings import SupplementaryConfiguration
+from vyxalbot3.util import (extract_message_id, get_message_room,
+                            get_messages_between)
 
 if TYPE_CHECKING:
     from vyxalbot3.commands.parser import Argument
@@ -787,6 +789,36 @@ class Commands:
         if message is not None:
             return f"{ping} {message}"
         return ping
+
+    async def trash_command(self, start: str, end: str, target: int = 82806):
+        """Move messages to a room (defaults to Trash)."""
+        start_message = extract_message_id(start)
+        end_message = extract_message_id(end)
+        if start_message is None:
+            return "Start message is invalid, expected a message ID or permalink."
+        if end_message is None:
+            return "End message is invalid, expected a message ID or permalink."
+        async with ClientSession() as session:
+            if (
+                await get_message_room(session, self.room.server, start_message)
+            ) != self.room.room_id:
+                return "Start message is not in this room."
+            if (
+                await get_message_room(session, self.room.server, end_message)
+            ) != self.room.room_id:
+                return "End message is not in this room."
+            message_ids = {
+                i
+                async for i in get_messages_between(
+                    session,
+                    self.room.server,
+                    self.room.room_id,
+                    start_message,
+                    end_message,
+                )
+            }
+        await self.room.move_messages(message_ids, target)
+        return None
 
     # GitHub interaction commands
 
