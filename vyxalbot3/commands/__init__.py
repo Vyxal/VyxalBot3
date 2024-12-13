@@ -848,6 +848,7 @@ class Commands:
         return None
 
     async def prod_command(self, repository: str | None = None, *, event: MessageEvent):
+        """Open a pull request to update the production branch of a repository."""
         if repository is None:
             if (repository := self.config.production.default_repository) is None:
                 return "No default repository configured."
