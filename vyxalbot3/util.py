@@ -79,7 +79,7 @@ async def get_messages_between(
     while True:
         async with session.post(
             f"{server}/chats/{room}/events",
-            data={"before": str(before), "mode": "Messages", "msgCount": 500},
+            data={"before": str(before), "mode": "Messages", "msgCount": 500, "fkey": fkey},
         ) as response:
             data = await response.json()
             events = data["events"]
