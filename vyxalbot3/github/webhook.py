@@ -3,7 +3,7 @@ from collections.abc import Callable
 from functools import wraps
 from logging import getLogger
 from pprint import pformat
-from typing import AsyncGenerator, Awaitable
+from typing import Any, AsyncGenerator, Awaitable, Coroutine
 
 from aiohttp.web import Request, Response
 from gidgethub import BadRequest, ValidationFailure
@@ -28,12 +28,14 @@ class GitHubWebhookReporter:
     @staticmethod
     def handler(
         func: Callable[
-            ["GitHubWebhookReporter", Event], AsyncGenerator[str | tuple[str, int], int]
+            ["GitHubWebhookReporter", Event], AsyncGenerator[str | tuple[str, int], int] | Coroutine[Any, Any, None]
         ]
     ) -> Callable[[Event, "GitHubWebhookReporter"], Awaitable[None]]:
         @wraps(func)
         async def _wrapper(event: Event, self: "GitHubWebhookReporter"):
             generator = func(self, event)
+            if generator is None:
+                return
             message = await anext(generator)
             while True:
                 try:
