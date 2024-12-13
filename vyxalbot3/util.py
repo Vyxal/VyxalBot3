@@ -64,7 +64,7 @@ async def get_message_room(
     async with session.get(f"{server}/transcript/message/{message}") as response:
         if response.status != 200:
             return None
-        soup = BeautifulSoup(await response.read())
+        soup = BeautifulSoup(await response.read(), features="lxml")
         assert isinstance(room_name := soup.find(class_="room-name"), Tag)
         assert isinstance(link := room_name.find("a"), Tag)
         assert isinstance(href := link["href"], str)
