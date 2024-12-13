@@ -173,6 +173,8 @@ class Commands:
         parameters = inspect.signature(command).parameters
         expected_types: dict[str, ArgumentType] = {}
         for parameter in parameters.values():
+            if parameter.name in IGNORED_PARAMETERS:
+                continue
             if isinstance(parameter.annotation, EnumType):
                 expected_type = ArgumentType.FLAG
             elif isinstance(parameter.annotation, UnionType):
@@ -266,7 +268,10 @@ class Commands:
         for index, segment in enumerate(path):
             if segment not in help_target:
                 if index == 0:
-                    if await self.db.trick.find_unique(where={"name": segment}) is not None:
+                    if (
+                        await self.db.trick.find_unique(where={"name": segment})
+                        is not None
+                    ):
                         return f"!!/{segment} is a trick."
                     return f'There is no command named "{segment}".'
                 parent_name = " ".join(path[:index])
@@ -283,7 +288,11 @@ class Commands:
                 f"Subcommands of !!/{parent_name} are: {", ".join(help_target.keys())}"
             )
 
-        doc = help_target.__doc__.replace("\n", " ") if help_target.__doc__ is not None else "(no help)"
+        doc = (
+            help_target.__doc__.replace("\n", " ")
+            if help_target.__doc__ is not None
+            else "(no help)"
+        )
         parameters = []
         for parameter_name, parameter in inspect.signature(
             help_target
@@ -881,7 +890,9 @@ class Commands:
         ]
         for rule in rules:
             if repository is None:
-                lines.append(f"- {rule.id} ({rule.type} on {rule.repository}): {rule.match} → {rule.label}")
+                lines.append(
+                    f"- {rule.id} ({rule.type} on {rule.repository}): {rule.match} → {rule.label}"
+                )
             else:
                 lines.append(f"- {rule.id} ({rule.type}): {rule.match} → {rule.label}")
         return "\n".join(lines)
