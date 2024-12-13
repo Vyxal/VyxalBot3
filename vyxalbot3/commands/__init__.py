@@ -283,7 +283,7 @@ class Commands:
                 f"Subcommands of !!/{parent_name} are: {", ".join(help_target.keys())}"
             )
 
-        doc = help_target.__doc__ if help_target.__doc__ is not None else "(no help)"
+        doc = help_target.__doc__.replace("\n", " ") if help_target.__doc__ is not None else "(no help)"
         parameters = []
         for parameter_name, parameter in inspect.signature(
             help_target
