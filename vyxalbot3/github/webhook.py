@@ -88,7 +88,7 @@ class GitHubWebhookReporter:
         return Response(status=200)
 
     async def label_pr(self, repository: str, pr: dict):
-        rules = await self.db.autolabelrule.find_many(where={"repository": repository})
+        rules = await self.db.autolabelrule.find_many(where={"repository": repository.lower()})
         labels_to_add = set()
 
         for rule in rules:
