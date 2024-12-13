@@ -7,7 +7,7 @@ argument: BAREWORD -> bareword
         | DECIMAL -> float
         | INT -> int
         | strarray
-strarray: "[" BAREWORD* "]"
+strarray: "[" ESCAPED_STRING* "]"
 
 _STRING_INNER: /.*?/s
 _STRING_ESC_INNER: _STRING_INNER /(?<!\\)(\\\\)*?/

@@ -42,7 +42,7 @@ class ArgumentTransformer(Transformer):
         return (ArgumentType.INT, int(value[0]))
 
     def strarray(self, value):
-        return (ArgumentType.STRARRAY, list(value))
+        return (ArgumentType.STRARRAY, list(item[1:-1] for item in value))
 
     def explicit_argument(self, value):
         return str(value[0]), value[1]
