@@ -241,7 +241,7 @@ class Commands:
                 and parameter.default is parameter.empty
             ):
                 expected_type = expected_types[parameter.name]
-                return f"Argument `{parameter.name}` not provided, expected a value of type **{expected_type}**."
+                return f"Argument `{parameter.name}` not provided, expected a value of type **{expected_type.name}**."
 
         if "event" in parameters:
             argument_values["event"] = event
