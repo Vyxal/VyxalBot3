@@ -798,7 +798,7 @@ class Commands:
             return "Start message is invalid, expected a message ID or permalink."
         if end_message is None:
             return "End message is invalid, expected a message ID or permalink."
-        async with ClientSession() as session:
+        async with ClientSession(cookie_jar=self.room._session.cookie_jar) as session:
             if (
                 await get_message_room(session, self.room.server, start_message)
             ) != self.room.room_id:
