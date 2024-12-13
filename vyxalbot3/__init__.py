@@ -9,14 +9,14 @@ from prisma import Prisma
 from vyxalbot3.commands import Commands
 from vyxalbot3.github import AppGitHubAPI
 from vyxalbot3.github.webhook import GitHubWebhookReporter
-from vyxalbot3.settings import Settings
+from vyxalbot3.settings import Settings, SupplementaryConfiguration
 
 
 async def _index(_):
     return Response(body=":3")
 
 
-async def main(settings: Settings):
+async def main(settings: Settings, config: SupplementaryConfiguration):
     logger = getLogger("main")
     app = Application(logger=logger.getChild("web"))
     runner = AppRunner(app)
@@ -37,7 +37,7 @@ async def main(settings: Settings):
             str(settings.github.app_id),
             settings.github.private_key,
         )
-        commands = Commands(room, db, gh)
+        commands = Commands(config, room, db, gh)
         webhook = GitHubWebhookReporter(room, db, gh, settings.webhook.secret, set())
         app.add_routes(
             [

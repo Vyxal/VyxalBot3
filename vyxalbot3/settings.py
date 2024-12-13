@@ -1,5 +1,6 @@
+from typing import Type
 from pydantic import BaseModel
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict, TomlConfigSettingsSource
 from sechat import Server
 
 
@@ -31,3 +32,27 @@ class Settings(BaseSettings):
     webhook: WebhookSettings
     github: GitHubSettings
     chat: ChatSettings
+
+class RepositoryProduction(BaseModel):
+    base: str
+    head: str
+
+class ProductionConfiguration(BaseModel):
+    default_repository: str | None = None
+    repositories: dict[str, RepositoryProduction] = {}
+
+class SupplementaryConfiguration(BaseSettings):
+    model_config = SettingsConfigDict(toml_file="supplementary.toml")
+
+    production: ProductionConfiguration = ProductionConfiguration()
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: Type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (TomlConfigSettingsSource(settings_cls),)

@@ -4,7 +4,7 @@ import logging
 from rich.logging import RichHandler
 
 from vyxalbot3 import main
-from vyxalbot3.settings import Settings
+from vyxalbot3.settings import Settings, SupplementaryConfiguration
 
 logging.basicConfig(
     level="DEBUG",
@@ -13,4 +13,4 @@ logging.basicConfig(
     handlers=[RichHandler(rich_tracebacks=True)],
 )
 
-asyncio.run(main(Settings()))  # type: ignore
+asyncio.run(main(Settings(), SupplementaryConfiguration()))  # type: ignore

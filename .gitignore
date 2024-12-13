@@ -1,3 +1,4 @@
 .env
 credentials.dat
 __pycache__
+supplementary.toml

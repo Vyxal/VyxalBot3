@@ -1,3 +1,4 @@
+from datetime import date
 import inspect
 import random
 import re
@@ -22,6 +23,7 @@ from prisma import Prisma
 from vyxalbot3.commands.messages import *
 from vyxalbot3.commands.parser import ArgumentType, ParseError, parse_arguments
 from vyxalbot3.github import AppGitHubAPI
+from vyxalbot3.settings import SupplementaryConfiguration
 
 if TYPE_CHECKING:
     from vyxalbot3.commands.parser import Argument
@@ -47,7 +49,8 @@ ADMIN_GROUP = "admin"
 class Commands:
     logger = getLogger("commands")
 
-    def __init__(self, room: Room, db: Prisma, gh: AppGitHubAPI):
+    def __init__(self, config: SupplementaryConfiguration, room: Room, db: Prisma, gh: AppGitHubAPI):
+        self.config = config
         self.room = room
         self.db = db
         self.gh = gh
@@ -843,6 +846,31 @@ class Commands:
         except BadRequest as error:
             return f"Failed to close issue: {error.args}"
         return None
+
+    async def prod_command(self, repository: str | None = None, *, event: MessageEvent):
+        if repository is None:
+            if (repository := self.config.production.default_repository) is None:
+                return "No default repository configured."
+        if (branches := self.config.production.repositories.get(repository)) is None:
+            return f"{repository} has no production configuration."
+        try:
+            await self.gh.post(
+                f"/repos/{self.gh.requester}/{repository}/pulls",
+                data={
+                    "title": f"Update production ({date.today().strftime("%b %-d %Y")})",
+                    "body": (
+                        f"Requested by [{event.user_name}]({self.room.server}/users/{event.user_id}) "
+                        f"[here]({self.room.server}/transcript/message/{event.message_id}${event.message_id})."
+                    ),
+                    "base": branches.base,
+                    "head": branches.head
+                },
+                oauth_token=await self.gh.app_token()
+            )
+        except BadRequest as error:
+            return f"Failed to open pull request: {error.args}"
+        return None
+        
 
     # Autolabel rule management commands
 
