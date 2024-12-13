@@ -174,7 +174,7 @@ class Commands:
                 ).replace("_", " ")
             }
         )
-        allowed_groups = set(permission.group_name for permission in permissions)
+        allowed_groups = set(permission.group_name for permission in permissions) | {ADMIN_GROUP}
         if len(allowed_groups) and not len(
             set(group.group_name for group in current_user.groups) & allowed_groups
         ):
