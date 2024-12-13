@@ -739,7 +739,7 @@ class Commands:
                 )
                 return f"`!!/{command}` is no longer explicitly usable by _{group}_."
 
-    async def command_permissions_command(self, command: str):
+    async def command_info_command(self, command: str):
         """Check which groups are allowed to run a command."""
         permissions = await self.db.commandpermission.find_many(
             where={"command": command}
