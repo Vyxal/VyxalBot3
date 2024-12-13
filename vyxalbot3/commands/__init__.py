@@ -842,7 +842,7 @@ class Commands:
     ):
         """Add an autolabel rule. `linked_issue` rules will find issues linked with "Closed #<number>" and
         apply `label` if one has a label named `match`. `branch_name` rules will use `match` as a regex
-        against the branch name of new pull requests."""
+        against the base branch name of new pull requests."""
         if type == AutolabelRuleType.branch_name:
             try:
                 re.compile(match)

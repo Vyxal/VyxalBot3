@@ -93,7 +93,7 @@ class GitHubWebhookReporter:
 
         for rule in rules:
             if rule.type == AutolabelRuleType.branch_name and re.fullmatch(
-                rule.match, pr["head"]["ref"]
+                rule.match, pr["base"]["ref"]
             ):
                 labels_to_add.add(rule.label)
 
