@@ -34,7 +34,8 @@ class GitHubWebhookReporter:
         @wraps(func)
         async def _wrapper(event: Event, self: "GitHubWebhookReporter"):
             generator = func(self, event)
-            if generator is None:
+            if isinstance(generator, Coroutine):
+                await generator
                 return
             message = await anext(generator)
             while True:
