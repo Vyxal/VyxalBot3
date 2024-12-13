@@ -28,7 +28,8 @@ class GitHubWebhookReporter:
     @staticmethod
     def handler(
         func: Callable[
-            ["GitHubWebhookReporter", Event], AsyncGenerator[str | tuple[str, int], int] | Coroutine[Any, Any, None]
+            ["GitHubWebhookReporter", Event],
+            AsyncGenerator[str | tuple[str, int], int] | Coroutine[Any, Any, None],
         ]
     ) -> Callable[[Event, "GitHubWebhookReporter"], Awaitable[None]]:
         @wraps(func)
@@ -88,7 +89,9 @@ class GitHubWebhookReporter:
         return Response(status=200)
 
     async def label_pr(self, repository: str, pr: dict):
-        rules = await self.db.autolabelrule.find_many(where={"repository": repository.lower()})
+        rules = await self.db.autolabelrule.find_many(
+            where={"repository": repository.lower()}
+        )
         labels_to_add = set()
 
         for rule in rules:

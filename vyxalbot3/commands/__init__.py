@@ -49,7 +49,13 @@ ADMIN_GROUP = "admin"
 class Commands:
     logger = getLogger("commands")
 
-    def __init__(self, config: SupplementaryConfiguration, room: Room, db: Prisma, gh: AppGitHubAPI):
+    def __init__(
+        self,
+        config: SupplementaryConfiguration,
+        room: Room,
+        db: Prisma,
+        gh: AppGitHubAPI,
+    ):
         self.config = config
         self.room = room
         self.db = db
@@ -864,14 +870,13 @@ class Commands:
                         f"[here]({self.room.server}/transcript/message/{event.message_id}${event.message_id})."
                     ),
                     "base": branches.base,
-                    "head": branches.head
+                    "head": branches.head,
                 },
-                oauth_token=await self.gh.app_token()
+                oauth_token=await self.gh.app_token(),
             )
         except BadRequest as error:
             return f"Failed to open pull request: {error.args}"
         return None
-        
 
     # Autolabel rule management commands
 
