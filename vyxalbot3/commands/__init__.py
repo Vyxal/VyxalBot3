@@ -174,10 +174,9 @@ class Commands:
                 ).replace("_", " ")
             }
         )
-        allowed_groups = set(permission.group_name for permission in permissions) | {ADMIN_GROUP}
-        if len(allowed_groups) and not len(
-            set(group.group_name for group in current_user.groups) & allowed_groups
-        ):
+        user_groups = set(group.group_name for group in current_user.groups)
+        allowed_groups = set(permission.group_name for permission in permissions)
+        if ADMIN_GROUP not in user_groups and len(allowed_groups) and not len(user_groups & allowed_groups):
             return f"Only members of groups {" | ".join(f"_{name}_" for name in allowed_groups)} may run that command."
 
         argument_values = {}
