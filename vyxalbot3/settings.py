@@ -63,7 +63,7 @@ class SupplementaryConfiguration(BaseSettings):
     model_config = SettingsConfigDict(toml_file="supplementary.toml")
 
     production: ProductionConfiguration = ProductionConfiguration()
-    reactions: list[BaseReaction] = []
+    reactions: list[CommandReaction | MessageReaction] = []
 
     @classmethod
     def settings_customise_sources(
