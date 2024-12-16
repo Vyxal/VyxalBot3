@@ -2,6 +2,7 @@ import inspect
 from enum import Enum, EnumType
 from itertools import zip_longest
 from logging import getLogger
+import random
 import re
 from types import NoneType, UnionType
 from typing import Any
@@ -28,7 +29,7 @@ from vyxalbot3.commands.parser import (
     ParseError,
     parse_arguments,
 )
-from vyxalbot3.settings import Reaction
+from vyxalbot3.settings import BaseReaction, CommandReaction, MessageReaction
 
 
 class CommandDispatcher:
@@ -37,7 +38,7 @@ class CommandDispatcher:
         room: Room,
         db: Prisma,
         tree: dict[str, CommandTree],
-        reactions: list[Reaction],
+        reactions: list[BaseReaction],
     ):
         self.room = room
         self.db = db
@@ -72,18 +73,22 @@ class CommandDispatcher:
                             ) and event.user_id == self.room.user_id:
                                 continue
                             if (match := re.match(reaction.pattern, event.content)) is not None:
-                                current_user = await self.current_user(event)
-                                try:
-                                    arguments = parse_arguments(reaction.command)[0]
-                                except ParseError as error:
-                                    await self.room.send(f"Parse error: {error.message}", event.message_id)
-                                else:
-                                    await self.respond(
-                                        event,
-                                        current_user,
-                                        arguments,
-                                        {name: (ArgumentType.STRING, value) for name, value in match.groupdict().items()}
-                                    )
+                                match reaction:
+                                    case CommandReaction():
+                                        current_user = await self.current_user(event)
+                                        try:
+                                            arguments = parse_arguments(reaction.command)[0]
+                                        except ParseError as error:
+                                            await self.room.send(f"Parse error: {error.message}", event.message_id)
+                                        else:
+                                            await self.respond(
+                                                event,
+                                                current_user,
+                                                arguments,
+                                                {name: (ArgumentType.STRING, value) for name, value in match.groupdict().items()}
+                                            )
+                                    case MessageReaction():
+                                        await self.room.send(random.choice(reaction.messages), event.message_id)
 
     async def current_user(self, event: MessageEvent):
         return await self.db.user.upsert(
