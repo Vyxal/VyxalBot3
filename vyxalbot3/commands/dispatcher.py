@@ -1,6 +1,7 @@
 import inspect
 from enum import Enum, EnumType
 from itertools import zip_longest
+from logging import getLogger
 import re
 from types import NoneType, UnionType
 from typing import Any
@@ -56,15 +57,47 @@ class CommandDispatcher:
                             content.startswith(PREFIX) and len(content) > len(PREFIX)
                         ):
                             continue
-                        await self.handle(event, content.removeprefix(PREFIX))
+                        try:
+                            arguments, explicit_arguments = parse_arguments(content.removeprefix(PREFIX))
+                        except ParseError as error:
+                            await self.room.send(f"Parse error: {error.message}", event.message_id)
+                        else:
+                            current_user = await self.current_user(event)
+                            await self.respond(event, current_user, arguments, explicit_arguments)
+                    
                     case MessageEvent() if type(event) is MessageEvent:
                         for reaction in self.reactions:
                             if (
                                 not reaction.reply_to_self
                             ) and event.user_id == self.room.user_id:
                                 continue
-                            if re.match(reaction.pattern, event.content):
-                                await self.handle(event, reaction.command)
+                            if (match := re.match(reaction.pattern, event.content)) is not None:
+                                current_user = await self.current_user(event)
+                                try:
+                                    arguments = parse_arguments(reaction.command)[0]
+                                except ParseError as error:
+                                    await self.room.send(f"Parse error: {error.message}", event.message_id)
+                                else:
+                                    await self.respond(
+                                        event,
+                                        current_user,
+                                        arguments,
+                                        {name: (ArgumentType.STRING, value) for name, value in match.groupdict().items()}
+                                    )
+
+    async def current_user(self, event: MessageEvent):
+        return await self.db.user.upsert(
+            where={"id": event.user_id},
+            data={
+                "create": {
+                    "id": event.user_id,
+                    "name": event.user_name,
+                    "groups": {},
+                },
+                "update": {"name": event.user_name},
+            },
+            include={"groups": True},
+        )
 
     def split_arguments(
         self, arguments: list[Argument]
@@ -247,34 +280,17 @@ class CommandDispatcher:
                     },
                 )
                 return await command(**argument_values)
-
-    async def handle(self, event: MessageEvent, command: str):
-        current_user = await self.db.user.upsert(
-            where={"id": event.user_id},
-            data={
-                "create": {
-                    "id": event.user_id,
-                    "name": event.user_name,
-                    "groups": {},
-                },
-                "update": {"name": event.user_name},
-            },
-            include={"groups": True},
-        )
+            
+    async def respond(self, event: MessageEvent, current_user: User, arguments: list[Argument], explicit_arguments: dict[str, Argument]):
         try:
-            arguments, explicit_arguments = parse_arguments(command)
-        except ParseError as error:
-            await self.room.send(f"Parse error: {error.message}", event.message_id)
+            response = await self.invoke(
+                event, current_user, arguments, explicit_arguments
+            )
+        except CommandError as error:
+            await self.room.send(error.message, event.message_id)
         else:
-            try:
-                response = await self.invoke(
-                    event, current_user, arguments, explicit_arguments
-                )
-            except CommandError as error:
-                await self.room.send(error.message, event.message_id)
-            else:
-                match response:
-                    case str(message):
-                        await self.room.send(message, event.message_id)
-                    case (message, reply_to):
-                        await self.room.send(message, reply_to)
+            match response:
+                case str(message):
+                    await self.room.send(message, event.message_id)
+                case (message, reply_to):
+                    await self.room.send(message, reply_to)
