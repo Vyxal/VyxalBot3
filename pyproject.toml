@@ -24,6 +24,9 @@ lxml = "^5.3.0"
 [tool.poetry.group.dev.dependencies]
 black = "^24.10.0"
 
+[tool.isort]
+profile = "black"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
