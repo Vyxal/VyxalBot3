@@ -59,7 +59,9 @@ class CommandDispatcher:
                         await self.handle(event, content.removeprefix(PREFIX))
                     case MessageEvent() if type(event) is MessageEvent:
                         for reaction in self.reactions:
-                            if (not reaction.reply_to_self) and event.user_id == self.room.user_id:
+                            if (
+                                not reaction.reply_to_self
+                            ) and event.user_id == self.room.user_id:
                                 continue
                             if re.match(reaction.pattern, event.content):
                                 await self.handle(event, reaction.command)
