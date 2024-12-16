@@ -7,6 +7,7 @@ from sechat import Credentials, Room
 
 from prisma import Prisma
 from vyxalbot3.commands import Commands
+from vyxalbot3.commands.dispatcher import CommandDispatcher
 from vyxalbot3.github import AppGitHubAPI
 from vyxalbot3.github.webhook import GitHubWebhookReporter
 from vyxalbot3.settings import Settings, SupplementaryConfiguration
@@ -38,6 +39,7 @@ async def main(settings: Settings, config: SupplementaryConfiguration):
             settings.github.private_key,
         )
         commands = Commands(config, room, db, gh)
+        dispatcher = CommandDispatcher(commands.tree, room, db)
         webhook = GitHubWebhookReporter(room, db, gh, settings.webhook.secret, set())
         app.add_routes(
             [
@@ -51,7 +53,7 @@ async def main(settings: Settings, config: SupplementaryConfiguration):
         await db.connect()
         try:
             async with TaskGroup() as group:
-                group.create_task(commands.run())
+                group.create_task(dispatcher.run())
                 logger.info("Startup complete")
         finally:
             logger.info("Shutting down")
