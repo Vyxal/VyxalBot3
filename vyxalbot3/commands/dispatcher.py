@@ -1,6 +1,7 @@
 import inspect
 from enum import Enum, EnumType
 from itertools import zip_longest
+import re
 from types import NoneType, UnionType
 from typing import Any
 
@@ -26,13 +27,21 @@ from vyxalbot3.commands.parser import (
     ParseError,
     parse_arguments,
 )
+from vyxalbot3.settings import Reaction
 
 
 class CommandDispatcher:
-    def __init__(self, room: Room, db: Prisma, tree: dict[str, CommandTree]):
-        self.tree = tree
+    def __init__(
+        self,
+        room: Room,
+        db: Prisma,
+        tree: dict[str, CommandTree],
+        reactions: list[Reaction],
+    ):
         self.room = room
         self.db = db
+        self.tree = tree
+        self.reactions = reactions
 
     async def run(self):
         async with ClientSession(self.room._session._base_url) as session:
@@ -48,6 +57,12 @@ class CommandDispatcher:
                         ):
                             continue
                         await self.handle(event, content.removeprefix(PREFIX))
+                    case MessageEvent() if type(event) is MessageEvent:
+                        for reaction in self.reactions:
+                            if (not reaction.reply_to_self) and event.user_id == self.room.user_id:
+                                continue
+                            if re.match(reaction.pattern, event.content):
+                                await self.handle(event, reaction.command)
 
     def split_arguments(
         self, arguments: list[Argument]

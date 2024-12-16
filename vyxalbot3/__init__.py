@@ -39,7 +39,7 @@ async def main(settings: Settings, config: SupplementaryConfiguration):
             settings.github.private_key,
         )
         commands = Commands(room, db, gh, config)
-        dispatcher = CommandDispatcher(room, db, commands.tree)
+        dispatcher = CommandDispatcher(room, db, commands.tree, config.reactions)
         webhook = GitHubWebhookReporter(room, db, gh, settings.webhook.secret, set())
         app.add_routes(
             [

@@ -48,11 +48,16 @@ class ProductionConfiguration(BaseModel):
     default_repository: str | None = None
     repositories: dict[str, RepositoryProduction] = {}
 
+class Reaction(BaseModel):
+    pattern: str
+    command: str
+    reply_to_self: bool = False
 
 class SupplementaryConfiguration(BaseSettings):
     model_config = SettingsConfigDict(toml_file="supplementary.toml")
 
     production: ProductionConfiguration = ProductionConfiguration()
+    reactions: list[Reaction] = []
 
     @classmethod
     def settings_customise_sources(
