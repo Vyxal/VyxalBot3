@@ -28,7 +28,7 @@ from vyxalbot3.commands.parser import (
 
 
 class CommandDispatcher:
-    def __init__(self, tree: dict[str, CommandTree], room: Room, db: Prisma):
+    def __init__(self, room: Room, db: Prisma, tree: dict[str, CommandTree]):
         self.tree = tree
         self.room = room
         self.db = db

@@ -38,8 +38,8 @@ async def main(settings: Settings, config: SupplementaryConfiguration):
             str(settings.github.app_id),
             settings.github.private_key,
         )
-        commands = Commands(config, room, db, gh)
-        dispatcher = CommandDispatcher(commands.tree, room, db)
+        commands = Commands(room, db, gh, config)
+        dispatcher = CommandDispatcher(room, db, commands.tree)
         webhook = GitHubWebhookReporter(room, db, gh, settings.webhook.secret, set())
         app.add_routes(
             [

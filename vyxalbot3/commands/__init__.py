@@ -49,10 +49,10 @@ class Commands:
 
     def __init__(
         self,
-        config: SupplementaryConfiguration,
         room: Room,
         db: Prisma,
         gh: AppGitHubAPI,
+        config: SupplementaryConfiguration,
     ):
         self.config = config
         self.room = room
