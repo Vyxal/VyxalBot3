@@ -240,6 +240,18 @@ class Commands:
         """🎉"""
         return "".join(random.choice("🎉🎊🥳🎈") for _ in range(15))
 
+    async def mojo_command(self):
+        """fire emoji"""
+        emojis = [
+            "".join(
+                random.choices(("🤣", "😂"), weights=[12, 8], k=random.randint(3, 7))
+            ),
+            "💯" * random.choice((1, 3, 5)),
+            "🔥" * random.randint(1, 10),
+        ]
+        random.shuffle(emojis)
+        return "".join(emojis) + ("😳" * (random.randint(1, 10) == 1))
+
     # Group and user commands
 
     async def resolve_user(self, target: str):
