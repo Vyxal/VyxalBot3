@@ -2,10 +2,10 @@ import inspect
 from enum import Enum, EnumType
 from itertools import zip_longest
 from types import NoneType, UnionType
-from typing import Any, Mapping
+from typing import Any
 
 from aiohttp import ClientSession
-from prisma.models import User
+from prisma.models import User, Group
 from sechat import Room
 from sechat.events import MessageEvent
 
@@ -16,6 +16,7 @@ from vyxalbot3.commands import (
     COMMAND_FUNCTION_SUFFIX,
     IGNORED_PARAMETERS,
     PREFIX,
+    CommandError,
     CommandLeaf,
     CommandTree,
 )
@@ -46,36 +47,7 @@ class CommandDispatcher:
                             content.startswith(PREFIX) and len(content) > len(PREFIX)
                         ):
                             continue
-                        current_user = await self.db.user.upsert(
-                            where={"id": event.user_id},
-                            data={
-                                "create": {
-                                    "id": event.user_id,
-                                    "name": event.user_name,
-                                    "groups": {},
-                                },
-                                "update": {"name": event.user_name},
-                            },
-                            include={"groups": True},
-                        )
-                        try:
-                            arguments = parse_arguments(content.removeprefix(PREFIX))
-                        except ParseError as error:
-                            await self.room.send(
-                                f"Parse error: {error.message}", event.message_id
-                            )
-                        else:
-                            match (
-                                await self.handle(
-                                    event,
-                                    current_user,
-                                    *arguments,
-                                )
-                            ):
-                                case str(message):
-                                    await self.room.send(message, event.message_id)
-                                case (message, reply_to):
-                                    await self.room.send(message, reply_to)
+                        await self.handle(event, content.removeprefix(PREFIX))
 
     def split_arguments(
         self, arguments: list[Argument]
@@ -91,23 +63,47 @@ class CommandDispatcher:
                 return command, arguments[index + 1 :]
         return command, None
 
-    def find_expected_types(self, parameters: Mapping[str, inspect.Parameter]):
-        expected_types: dict[str, ArgumentType] = {}
-        for parameter in parameters.values():
-            if parameter.name in IGNORED_PARAMETERS:
-                continue
-            if isinstance(parameter.annotation, EnumType):
-                expected_type = ArgumentType.FLAG
-            elif isinstance(parameter.annotation, UnionType):
-                assert parameter.annotation.__args__[1] == NoneType
-                assert parameter.default == None
-                expected_type = ARGUMENT_TYPE_SIGNATURES[
-                    parameter.annotation.__args__[0]
-                ]
-            else:
-                expected_type = ARGUMENT_TYPE_SIGNATURES[parameter.annotation]
-            expected_types[parameter.name] = expected_type
-        return expected_types
+    def expected_type(self, parameter: inspect.Parameter):
+        if isinstance(parameter.annotation, EnumType):
+            return ArgumentType.FLAG
+        elif isinstance(parameter.annotation, UnionType):
+            assert parameter.annotation.__args__[1] == NoneType
+            assert parameter.default == None
+            return ARGUMENT_TYPE_SIGNATURES[parameter.annotation.__args__[0]]
+        else:
+            return ARGUMENT_TYPE_SIGNATURES[parameter.annotation]
+
+    def create_argument_value(
+        self,
+        parameter: inspect.Parameter,
+        argument: Argument,
+        expected_type: ArgumentType,
+    ):
+        match argument:
+            case (
+                ArgumentType.FLAG,
+                name,
+            ) if expected_type == ArgumentType.FLAG:
+                assert isinstance(parameter.annotation, EnumType)
+                try:
+                    return parameter.annotation(name)
+                except ValueError:
+                    values = "/".join(
+                        item.value
+                        for item in list(parameter.annotation)
+                        if isinstance(item, Enum)
+                    )
+                    raise CommandError(
+                        f"Invalid value supplied for argument `{parameter.name}`; "
+                        f"expected one of {values}."
+                    )
+            case (argument_type, value) if expected_type == argument_type:
+                return value
+            case (actual_type, _):
+                raise CommandError(
+                    f"Incorrect type supplied for argument `{parameter.name}`; "
+                    f"expected **{expected_type.name}** but got **{actual_type.name}**"
+                )
 
     def prepare_arguments(
         self,
@@ -115,38 +111,9 @@ class CommandDispatcher:
         arguments: list[Argument],
         explicit_arguments: dict[str, Argument],
         context: dict[str, Any] = {},
-    ) -> dict[str, Any] | str:
+    ) -> dict[str, Any]:
         argument_values = {}
         parameters = inspect.signature(command).parameters
-        expected_types = self.find_expected_types(parameters)
-
-        def _set_argument(parameter: inspect.Parameter, argument: Argument):
-            expected_type = expected_types[parameter.name]
-            match argument:
-                case (
-                    ArgumentType.FLAG,
-                    name,
-                ) if expected_type == ArgumentType.FLAG:
-                    assert isinstance(parameter.annotation, EnumType)
-                    try:
-                        argument_values[parameter.name] = parameter.annotation(name)
-                    except ValueError:
-                        values = "/".join(
-                            item.value
-                            for item in list(parameter.annotation)
-                            if isinstance(item, Enum)
-                        )
-                        return (
-                            f"Invalid value supplied for argument `{parameter.name}`; "
-                            f"expected one of {values}."
-                        )
-                case (argument_type, value) if expected_type == argument_type:
-                    argument_values[parameter.name] = value
-                case (actual_type, _):
-                    return (
-                        f"Incorrect type supplied for argument `{parameter.name}`; "
-                        f"expected **{expected_type.name}** but got **{actual_type.name}**"
-                    )
 
         # Set positional arguments
         for parameter, argument in zip_longest(
@@ -155,22 +122,28 @@ class CommandDispatcher:
             if argument is None:
                 break
             if parameter is None:
-                return f"Superfluous arguments supplied starting at `{argument[1]}`."
+                raise CommandError(
+                    f"Superfluous arguments supplied starting at `{argument[1]}`."
+                )
             if parameter.name in IGNORED_PARAMETERS:
                 continue
-            if (error := _set_argument(parameter, argument)) is not None:
-                return error
+            argument_values[parameter.name] = self.create_argument_value(
+                parameter, argument, self.expected_type(parameter)
+            )
 
         # Set keyword arguments
         for argument_name, argument in explicit_arguments.items():
             if argument_name in IGNORED_PARAMETERS:
-                return f"Illegal argument `{argument_name}` supplied."
+                raise CommandError(f"Illegal argument `{argument_name}` supplied.")
             if argument_name in argument_values:
-                return f"Multiple values supplied for argument `{argument_name}`."
+                raise CommandError(
+                    f"Multiple values supplied for argument `{argument_name}`."
+                )
             if (parameter := parameters.get(argument_name)) is None:
-                return f"Unknown argument `{argument_name}` supplied."
-            if (error := _set_argument(parameter, argument)) is not None:
-                return error
+                raise CommandError(f"Unknown argument `{argument_name}` supplied.")
+            argument_values[parameter.name] = self.create_argument_value(
+                parameter, argument, self.expected_type(parameter)
+            )
 
         # Find missing arguments
         for parameter in parameters.values():
@@ -180,8 +153,10 @@ class CommandDispatcher:
                 parameter.name not in argument_values
                 and parameter.default is parameter.empty
             ):
-                expected_type = expected_types[parameter.name]
-                return f"Argument `{parameter.name}` not provided, expected a value of type **{expected_type.name}**."
+                expected_type = self.expected_type(parameter)
+                raise CommandError(
+                    f"Argument `{parameter.name}` not provided, expected a value of type **{expected_type.name}**."
+                )
 
         # Set context values
         for key, value in context.items():
@@ -190,7 +165,21 @@ class CommandDispatcher:
 
         return argument_values
 
-    async def handle(
+    async def check_permissions(self, command: str, current_groups: set[str]):
+        permissions = await self.db.commandpermission.find_many(
+            where={"command": command}
+        )
+        allowed_groups = set(permission.group_name for permission in permissions)
+        if (
+            ADMIN_GROUP not in current_groups
+            and len(allowed_groups)
+            and not len(current_groups & allowed_groups)
+        ):
+            raise CommandError(
+                f"Only members of groups {" | ".join(f"_{name}_" for name in allowed_groups)} may run that command."
+            )
+
+    async def invoke(
         self,
         event: MessageEvent,
         current_user: User,
@@ -209,37 +198,29 @@ class CommandDispatcher:
                 ) is not None:
                     return trick.body
                 if tree == self.tree:
-                    return f"There is no command named !!/{nonexistent_leaf}."
+                    raise CommandError(
+                        f"There is no command named !!/{nonexistent_leaf}."
+                    )
                 parent_name = " ".join(str(a[1]) for a in full_arguments[:-1])
-                return (
+                raise CommandError(
                     f'The group !!/{parent_name} has no subcommand named "{nonexistent_leaf}". '
                     f"Its subcommands are: {", ".join(tree.keys())}"
                 )
             case (tree, None):
                 # The command ended on a group name
                 group_name = " ".join(str(a[1]) for a in full_arguments)
-                return f"Subcommands of !!/{group_name} are: {", ".join(tree.keys())}"
+                raise CommandError(
+                    f"Subcommands of !!/{group_name} are: {", ".join(tree.keys())}"
+                )
             case (command, arguments):
                 assert current_user.groups is not None
-                permissions = await self.db.commandpermission.find_many(
-                    where={
-                        "command": command.__name__.removesuffix(
-                            COMMAND_FUNCTION_SUFFIX
-                        ).replace("_", " ")
-                    }
+                await self.check_permissions(
+                    command.__name__.removesuffix(COMMAND_FUNCTION_SUFFIX).replace(
+                        "_", " "
+                    ),
+                    {group.group_name for group in current_user.groups},
                 )
-                user_groups = set(group.group_name for group in current_user.groups)
-                allowed_groups = set(
-                    permission.group_name for permission in permissions
-                )
-                if (
-                    ADMIN_GROUP not in user_groups
-                    and len(allowed_groups)
-                    and not len(user_groups & allowed_groups)
-                ):
-                    return f"Only members of groups {" | ".join(f"_{name}_" for name in allowed_groups)} may run that command."
-
-                match self.prepare_arguments(
+                argument_values = self.prepare_arguments(
                     command,
                     arguments,
                     explicit_arguments,
@@ -247,8 +228,36 @@ class CommandDispatcher:
                         "event": event,
                         "current_user": current_user,
                     },
-                ):
-                    case str(error):
-                        return error
-                    case argument_values:
-                        return await command(**argument_values)
+                )
+                return await command(**argument_values)
+
+    async def handle(self, event: MessageEvent, command: str):
+        current_user = await self.db.user.upsert(
+            where={"id": event.user_id},
+            data={
+                "create": {
+                    "id": event.user_id,
+                    "name": event.user_name,
+                    "groups": {},
+                },
+                "update": {"name": event.user_name},
+            },
+            include={"groups": True},
+        )
+        try:
+            arguments, explicit_arguments = parse_arguments(command)
+        except ParseError as error:
+            await self.room.send(f"Parse error: {error.message}", event.message_id)
+        else:
+            try:
+                response = await self.invoke(
+                    event, current_user, arguments, explicit_arguments
+                )
+            except CommandError as error:
+                await self.room.send(error.message, event.message_id)
+            else:
+                match response:
+                    case str(message):
+                        await self.room.send(message, event.message_id)
+                    case (message, reply_to):
+                        await self.room.send(message, reply_to)

@@ -44,6 +44,12 @@ PREFIX = "!!/"
 ADMIN_GROUP = "admin"
 
 
+class CommandError(Exception):
+    def __init__(self, message: str):
+        super().__init__()
+        self.message = message
+
+
 class Commands:
     logger = getLogger("commands")
 
@@ -102,9 +108,9 @@ class Commands:
                         is not None
                     ):
                         return f"!!/{segment} is a trick."
-                    return f'There is no command named "{segment}".'
+                    raise CommandError(f'There is no command named "{segment}".')
                 parent_name = " ".join(path[:index])
-                return (
+                raise CommandError(
                     f'The group "{parent_name}" has no subcommand named "{segment}". '
                     f"Its subcommands are: {", ".join(help_target.keys())}"
                 )
@@ -243,7 +249,7 @@ class Commands:
                     where={"id": int(target)}, include={"groups": True}
                 )
             ) is None:
-                return f"I don't know of a user with the ID `{target}`."
+                raise CommandError(f"I don't know of a user with the ID `{target}`.")
             return target_user
         else:
             match (
@@ -252,43 +258,49 @@ class Commands:
                 )
             ):
                 case []:
-                    return f'I don\'t know of any users named "{target}".'
+                    raise CommandError(f'I don\'t know of any users named "{target}".')
                 case [single]:
                     return single
                 case [*multiple]:
-                    return (
+                    raise CommandError(
                         f"I know of multiple users named {target}: "
                         f"{", ".join(f"{user.name} ({user.id})" for user in multiple)}"
                         f". Please run this command again and supply the ID of the user you wish to look up."
                     )
 
+    async def resolve_group(self, target: str, include={"is_managed_by": True}):
+        group = await self.db.group.find_unique(where={"name": target}, include=include)
+        if group is None:
+            raise CommandError(f"There is no group named _{target}_.")
+        return group
+
     def can_user_manage(self, user: User, group: Group):
         assert user.groups is not None
         if any(group.group_name == ADMIN_GROUP for group in user.groups):
-            return True, None
+            return True
         assert group.is_managed_by is not None
         if len(group.is_managed_by) and not len(
             set(group.name for group in group.is_managed_by)
             & set(group.group_name for group in user.groups)
         ):
-            assert group.is_managed_by is not None
-            return False, (
+            return False
+        return True
+
+    def ensure_user_can_manage(self, user: User, group: Group):
+        assert group.is_managed_by is not None
+        if not self.can_user_manage(user, group):
+            raise CommandError(
                 f"You are not allowed to modify this group. Only members of groups "
                 f"{" | ".join(f"_{group.name}_" for group in group.is_managed_by)} "
                 f"are allowed to do that."
             )
-        return True, None
 
     async def user_info_command(self, target: str | None = None, *, current_user: User):
         """Fetch information about a user, yourself by default."""
         if target is None:
             target_user = current_user
         else:
-            match (await self.resolve_user(target)):
-                case str(error):
-                    return error
-                case User() as target_user:
-                    pass
+            target_user = await self.resolve_user(target)
         assert target_user.groups is not None
         group_names = (
             ", ".join(
@@ -308,15 +320,10 @@ class Commands:
     ):
         """Create a new group."""
         if (await self.db.group.find_unique(where={"name": name})) is not None:
-            return f"There is already a group named _{name}_."
+            raise CommandError(f"There is already a group named _{name}_.")
         for group_name in can_manage:
-            group = await self.db.group.find_unique(
-                where={"name": group_name}, include={"is_managed_by": True}
-            )
-            if group is None:
-                return f"There is no group named _{name}_."
-            if not self.can_user_manage(current_user, group)[0]:
-                return f"You are not allowed to manage _{group}_."
+            group = await self.resolve_group(group_name)
+            self.ensure_user_can_manage(current_user, group)
         await self.db.group.create(
             data={
                 "name": name,
@@ -337,12 +344,8 @@ class Commands:
             )
         ) is None:
             return f"There is no group named _{name}_."
+        self.ensure_user_can_manage(current_user, group)
         assert group.members is not None
-        match self.can_user_manage(current_user, group):
-            case (True, _):
-                pass
-            case (False, str(error)):
-                return error
         if any(member.protected for member in group.members):
             return f"Group _{name}_ has protected members and may not be deleted."
         await self.db.group.delete(where={"name": name})
@@ -350,8 +353,8 @@ class Commands:
 
     async def group_info_command(self, name: str):
         """Fetch member and command information for a group."""
-        group = await self.db.group.find_unique(
-            where={"name": name},
+        group = await self.resolve_group(
+            name,
             include={
                 "members": {"include": {"user": True}},
                 "allowed_commands": True,
@@ -359,8 +362,6 @@ class Commands:
                 "can_manage": True,
             },
         )
-        if group is None:
-            return f"There is no group named _{name}_."
 
         assert group.members is not None
         members = (
@@ -407,27 +408,12 @@ class Commands:
         current_user: User,
     ):
         """Add or remove a user from a group, yourself by default."""
-        if (
-            group := await self.db.group.find_unique(
-                where={"name": name}, include={"is_managed_by": True}
-            )
-        ) is None:
-            return f"There is no group named _{name}_."
-        assert current_user.groups is not None
-        assert group.is_managed_by is not None
-        match self.can_user_manage(current_user, group):
-            case (True, _):
-                pass
-            case (False, str(error)):
-                return error
+        group = await self.resolve_group(name)
+        self.ensure_user_can_manage(current_user, group)
         if target is None:
             target_user = current_user
         else:
-            match (await self.resolve_user(target)):
-                case User() as target_user:
-                    pass
-                case str(error):
-                    return error
+            target_user = await self.resolve_user(target)
 
         current_membership = await self.db.groupmembership.find_unique(
             where={
@@ -437,7 +423,7 @@ class Commands:
         match action:
             case Commands.MembershipAction.ADD:
                 if current_membership is not None:
-                    return (
+                    raise CommandError(
                         f"{"You are" if target_user == current_user else f"{target_user.name} is"} "
                         f"already a member of group _{name}_."
                     )
@@ -450,12 +436,14 @@ class Commands:
                 return f"Added {"you" if target_user == current_user else target_user.name} to group _{name}_."
             case Commands.MembershipAction.REMOVE:
                 if current_membership is None:
-                    return (
+                    raise CommandError(
                         f"{"You are" if target_user == current_user else f"{target_user.name} is"} "
                         f"not a member of group _{name}_."
                     )
                 if current_membership.protected:
-                    return f"{target_user.name} may not be removed from group _{name}_."
+                    raise CommandError(
+                        f"{target_user.name} may not be removed from group _{name}_."
+                    )
                 await self.db.groupmembership.delete(
                     where={
                         "user_id_group_name": {
@@ -470,36 +458,16 @@ class Commands:
         self, target: str, action: MembershipAction, manager: str, *, current_user: User
     ):
         """Change which other groups are allowed to manage a group."""
-        if (
-            target_group := await self.db.group.find_unique(
-                where={"name": target}, include={"is_managed_by": True}
-            )
-        ) is None:
-            return f"There is no group named _{target}_."
-        if (
-            manager_group := await self.db.group.find_unique(
-                where={"name": manager}, include={"is_managed_by": True}
-            )
-        ) is None:
-            return f"There is no group named _{manager}_."
-        assert current_user.groups is not None
+        target_group = await self.resolve_group(target)
+        manager_group = await self.resolve_group(manager)
         assert target_group.is_managed_by is not None
-
-        match self.can_user_manage(current_user, manager_group):
-            case (True, _):
-                pass
-            case (False, str(error)):
-                return error
-        match self.can_user_manage(current_user, target_group):
-            case (True, _):
-                pass
-            case (False, str(error)):
-                return error
+        self.ensure_user_can_manage(current_user, manager_group)
+        self.ensure_user_can_manage(current_user, target_group)
 
         match action:
             case Commands.MembershipAction.ADD:
                 if manager_group in target_group.is_managed_by:
-                    return f"_{manager}_ is already managing _{target}_."
+                    raise CommandError(f"_{manager}_ is already managing _{target}_.")
                 await self.db.group.update(
                     data={"is_managed_by": {"connect": [{"name": manager}]}},
                     where={"name": target},
@@ -507,7 +475,7 @@ class Commands:
                 return f"_{manager}_ is now managing _{target}_."
             case Commands.MembershipAction.REMOVE:
                 if manager_group not in target_group.is_managed_by:
-                    return f"_{manager}_ is not managing _{target}_."
+                    raise CommandError(f"_{manager}_ is not managing _{target}_.")
                 await self.db.group.update(
                     data={"is_managed_by": {"disconnect": [{"name": manager}]}},
                     where={"name": target},
@@ -523,13 +491,7 @@ class Commands:
         self, command: str, action: MembershipAction, group: str
     ):
         """Change which groups are allowed to run a command."""
-        if (
-            await self.db.group.find_unique(
-                where={"name": group}, include={"is_managed_by": True}
-            )
-            is None
-        ):
-            return f"There is no group named _{group}_."
+        await self.resolve_group(group)
 
         current_groups = [
             permission.group_name
@@ -540,14 +502,16 @@ class Commands:
         match action:
             case Commands.MembershipAction.ADD:
                 if group in current_groups:
-                    return f"`!!/{command}` is already usable by _{group}_."
+                    raise CommandError(
+                        f"`!!/{command}` is already usable by _{group}_."
+                    )
                 await self.db.commandpermission.create(
                     data={"command": command, "group": {"connect": {"name": group}}}
                 )
                 return f"`!!/{command}` is now usable by _{group}_."
             case Commands.MembershipAction.REMOVE:
                 if group not in current_groups:
-                    return (
+                    raise CommandError(
                         f"`!!/{command}` is already not explicitly usable by _{group}_."
                     )
                 await self.db.commandpermission.delete(
@@ -571,7 +535,7 @@ class Commands:
     async def trick_upsert_command(self, name: str, body: str):
         """Add a text trick. If a trick with the same name exists, it will be replaced."""
         if not len(body):
-            return "Tricks cannot be empty."
+            raise CommandError("Tricks cannot be empty.")
         await self.db.trick.upsert(
             where={"name": name},
             data={"create": {"name": name, "body": body}, "update": {"body": body}},
@@ -583,20 +547,14 @@ class Commands:
         try:
             await self.db.trick.delete(where={"name": name})
         except RecordNotFoundError:
-            return f"No trick named `{name}` exists."
+            raise CommandError(f"No trick named `{name}` exists.")
         return f"Trick `{name}` deleted."
 
     # Utility commands
 
     async def ping_command(self, group_name: str, message: str | None = None):
         """Ping every member of a group. Use this feature with caution."""
-        if (
-            group := await self.db.group.find_unique(
-                where={"name": group_name},
-                include={"members": {"include": {"user": True}}},
-            )
-        ) is None:
-            return f"There is no group named _{group_name}_."
+        group = await self.resolve_group(group_name)
         assert group.members is not None
         if not len(group.members):
             return "Nobody to ping."
@@ -613,18 +571,22 @@ class Commands:
         start_message = extract_message_id(start)
         end_message = extract_message_id(end)
         if start_message is None:
-            return "Start message is invalid, expected a message ID or permalink."
+            raise CommandError(
+                "Start message is invalid, expected a message ID or permalink."
+            )
         if end_message is None:
-            return "End message is invalid, expected a message ID or permalink."
+            raise CommandError(
+                "End message is invalid, expected a message ID or permalink."
+            )
         async with ClientSession(cookie_jar=self.room._session.cookie_jar) as session:
             if (
                 await get_message_room(session, self.room.server, start_message)
             ) != self.room.room_id:
-                return "Start message is not in this room."
+                raise CommandError("Start message is not in this room.")
             if (
                 await get_message_room(session, self.room.server, end_message)
             ) != self.room.room_id:
-                return "End message is not in this room."
+                raise CommandError("End message is not in this room.")
             message_ids = {
                 i
                 async for i in get_messages_between(
@@ -662,7 +624,7 @@ class Commands:
                 oauth_token=await self.gh.app_token(),
             )
         except BadRequest as error:
-            return f"Failed to open issue: {error.args}"
+            raise CommandError(f"Failed to open issue: {error.args}") from error
         return None
 
     class IssueCloseType(Enum):
@@ -693,7 +655,7 @@ class Commands:
                 oauth_token=await self.gh.app_token(),
             )
         except BadRequest as error:
-            return f"Failed to post close comment: {error.args}"
+            raise CommandError(f"Failed to post close comment: {error.args}") from error
         try:
             await self.gh.patch(
                 f"/repos/{self.gh.requester}/{repository}/issues/{number}",
@@ -701,16 +663,16 @@ class Commands:
                 oauth_token=await self.gh.app_token(),
             )
         except BadRequest as error:
-            return f"Failed to close issue: {error.args}"
+            raise CommandError(f"Failed to close issue: {error.args}")
         return None
 
     async def prod_command(self, repository: str | None = None, *, event: MessageEvent):
         """Open a pull request to update the production branch of a repository."""
         if repository is None:
             if (repository := self.config.production.default_repository) is None:
-                return "No default repository configured."
+                raise CommandError("No default repository configured.")
         if (branches := self.config.production.repositories.get(repository)) is None:
-            return f"{repository} has no production configuration."
+            raise CommandError(f"{repository} has no production configuration.")
         try:
             await self.gh.post(
                 f"/repos/{self.gh.requester}/{repository}/pulls",
@@ -726,7 +688,7 @@ class Commands:
                 oauth_token=await self.gh.app_token(),
             )
         except BadRequest as error:
-            return f"Failed to open pull request: {error.args}"
+            raise CommandError(f"Failed to open pull request: {error.args}") from error
         return None
 
     # Autolabel rule management commands
@@ -741,7 +703,9 @@ class Commands:
             try:
                 re.compile(match)
             except re.PatternError as error:
-                return f"Invalid regular expression for branch name match: {error.msg}"
+                raise CommandError(
+                    f"Invalid regular expression for branch name match: {error.msg}"
+                )
         try:
             rule = await self.db.autolabelrule.create(
                 data={
@@ -752,13 +716,13 @@ class Commands:
                 }
             )
         except UniqueViolationError:
-            return "A rule with these parameters already exists."
+            raise CommandError("A rule with these parameters already exists.")
         return f"Autolabel rule `{rule.id}` created for repository {repository}."
 
     async def autolabel_remove_command(self, id: str):
         """Remove an autolabel rule."""
         if await self.db.autolabelrule.delete(where={"id": id}) is None:
-            return "No autolabel rule exists with that ID."
+            raise CommandError("No autolabel rule exists with that ID.")
         return f"Autolabel rule `{id}` deleted."
 
     async def autolabel_list_command(self, repository: str | None = None):
