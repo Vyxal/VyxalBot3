@@ -72,7 +72,7 @@ class CommandDispatcher:
                                 not reaction.reply_to_self
                             ) and event.user_id == self.room.user_id:
                                 continue
-                            if (match := re.match(reaction.pattern, event.content)) is not None:
+                            if (match := re.fullmatch(reaction.pattern, event.content)) is not None:
                                 match reaction:
                                     case CommandReaction():
                                         current_user = await self.current_user(event)
