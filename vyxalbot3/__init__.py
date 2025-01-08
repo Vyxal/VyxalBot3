@@ -40,7 +40,7 @@ async def main(settings: Settings, config: SupplementaryConfiguration):
         )
         commands = Commands(room, db, gh, config)
         dispatcher = CommandDispatcher(room, db, commands.tree, config.reactions)
-        webhook = GitHubWebhookReporter(room, db, gh, settings.webhook.secret, set())
+        webhook = GitHubWebhookReporter(room, db, gh, settings.webhook.secret)
         app.add_routes(
             [
                 get("/", _index),

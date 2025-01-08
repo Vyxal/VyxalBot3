@@ -56,11 +56,22 @@ model AutolabelRule {
     match String
     label String
 
-    @@index([repository, type])
     @@unique([repository, type, match, label])
+    @@index([repository, type])
 }
 
 enum AutolabelRuleType {
     linked_issue @map("LINKED_ISSUE")
-    branch_name @map("BRANCH_NAME")
+    branch_name  @map("BRANCH_NAME")
+}
+
+model RepositoryPriority {
+    repository String   @id
+    priority   Priority
+}
+
+enum Priority {
+    default
+    important
+    ignored
 }

@@ -9,7 +9,7 @@ from aiohttp.web import Request, Response
 from gidgethub import BadRequest, ValidationFailure
 from gidgethub.routing import Router
 from gidgethub.sansio import Event
-from prisma.enums import AutolabelRuleType
+from prisma.enums import AutolabelRuleType, Priority
 from sechat import Room
 
 from prisma import Prisma
@@ -57,13 +57,20 @@ class GitHubWebhookReporter:
         db: Prisma,
         gh: AppGitHubAPI,
         webhook_secret: str,
-        ignored_repositories: set[str],
     ):
         self.room = room
         self.db = db
         self.gh = gh
         self.webhook_secret = webhook_secret
-        self.ignored_repositories = ignored_repositories
+
+    async def repository_priority(self, repository: dict[str, Any]):
+        if (
+            repo_info := await self.db.repositorypriority.find_unique(
+                where={"repository": repository["name"]}
+            )
+        ) is not None:
+            return repo_info.priority
+        return None
 
     async def handle_request(self, request: Request) -> Response:
         try:
@@ -76,7 +83,7 @@ class GitHubWebhookReporter:
         if repository := event.data.get("repository", False):
             if (
                 repository["visibility"] == "private"
-                or repository["name"] in self.ignored_repositories
+                or await self.repository_priority(repository) == Priority.ignored
             ):
                 return Response(status=200)
         try:
@@ -239,7 +246,9 @@ class GitHubWebhookReporter:
         if match := re.search(r"\d.*", release_name):
             release_name = match[0]
 
-        yield f"__[{event.data["repository"]["name"]} {release_name}]({release["html_url"]})__"
+        message_id = yield f"__[{event.data["repository"]["name"]} {release_name}]({release["html_url"]})__"
+        if await self.repository_priority(event.data["repository"]) == Priority.important:
+            await self.room.pin(message_id)
 
     @router.register("fork")
     @handler

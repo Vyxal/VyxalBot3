@@ -12,7 +12,7 @@ from aiohttp import ClientSession
 from asciitree import BoxStyle, LeftAligned
 from asciitree.drawing import BOX_LIGHT
 from gidgethub import BadRequest
-from prisma.enums import AutolabelRuleType
+from prisma.enums import AutolabelRuleType, Priority
 from prisma.errors import RecordNotFoundError, UniqueViolationError
 from prisma.models import Group, User
 from sechat import Room
@@ -702,6 +702,24 @@ class Commands:
         except BadRequest as error:
             raise CommandError(f"Failed to open pull request: {error.args}") from error
         return None
+
+    async def repo_priority_command(self, repository: str, priority: Priority):
+        """Change the priority of a repository. `important` repositories will have their release messages pinned.
+        Activity in `ignored` repositories will not be reported by the bot."""
+
+        try:
+            await self.gh.getitem(f"/repos/{self.gh.requester}/{repository}")
+        except BadRequest:
+            raise CommandError("Invalid or unknown repository.")
+
+        await self.db.repositorypriority.upsert(
+            where={"repository": repository},
+            data={
+                "create": {"repository": repository, "priority": priority},
+                "update": {"priority": priority},
+            },
+        )
+        return f"Priority of {repository} set to {priority}."
 
     # Autolabel rule management commands
 
