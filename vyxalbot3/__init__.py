@@ -29,7 +29,7 @@ async def main(settings: Settings, config: SupplementaryConfiguration):
         settings.chat.password,
         server=settings.chat.server,
     )
-    async with await Room.join(
+    async with Room.join(
         credentials, settings.chat.room
     ) as room, ClientSession() as session:
         gh = AppGitHubAPI(

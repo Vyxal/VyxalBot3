@@ -5,7 +5,7 @@ from logging import getLogger
 import random
 import re
 from types import NoneType, UnionType
-from typing import Any
+from typing import Any, Sequence
 
 from aiohttp import ClientSession
 from prisma.models import User, Group
@@ -38,7 +38,7 @@ class CommandDispatcher:
         room: Room,
         db: Prisma,
         tree: dict[str, CommandTree],
-        reactions: list[BaseReaction],
+        reactions: Sequence[BaseReaction],
     ):
         self.room = room
         self.db = db
