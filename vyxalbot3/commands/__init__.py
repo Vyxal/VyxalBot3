@@ -8,6 +8,8 @@ from logging import getLogger
 from types import NoneType, UnionType
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Mapping, cast
 
+from datetime import datetime
+
 from aiohttp import ClientSession
 from asciitree import BoxStyle, LeftAligned
 from asciitree.drawing import BOX_LIGHT
@@ -64,6 +66,7 @@ class Commands:
         self.room = room
         self.db = db
         self.gh = gh
+        self.init_time = datetime.now()
         self.tree: dict[str, CommandTree] = {}
 
         for method_name, method in inspect.getmembers(self, inspect.ismethod):
@@ -775,3 +778,7 @@ class Commands:
             else:
                 lines.append(f"- {rule.id} ({rule.type}): {rule.match} → {rule.label}")
         return "\n".join(lines)
+
+    async def uptime_command(self):
+        """Returns how long the bot has been running"""
+        return f"I have been {"falling" if random.random() <= 0.1 else "running"} for {datetime.now() - self.init_time}!"
