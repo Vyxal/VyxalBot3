@@ -56,8 +56,12 @@ class CommandDispatcher:
                             content = await response.text()
                         if not (
                             content.startswith(PREFIX) and len(content) > len(PREFIX)
+                            or
+                            ( bridgeMatch := re.search(r"^\[.*\] "+PREFIX, content) ) and (len(content[bridgeMatch.end():])>0) )
                         ):
                             continue
+                        if bridgeMatch:
+                            content = PREFIX + content[bridgeMatch.end():]
                         try:
                             arguments, explicit_arguments = parse_arguments(content.removeprefix(PREFIX))
                         except ParseError as error:
