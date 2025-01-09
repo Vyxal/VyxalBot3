@@ -160,7 +160,7 @@ class Commands:
                     parameters.append(f"[{body} = {default}]")
             else:
                 parameters.append(f"({body})")
-        return f"`!!/{name} {" ".join(parameters)}`: {doc}"
+        return f"`!!/{" ".join((name, " ".join(parameters)))}`: {doc}"
 
     async def commands_command(self):
         """List all commands supported by the bot."""
