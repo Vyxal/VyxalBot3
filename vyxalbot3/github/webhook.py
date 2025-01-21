@@ -99,7 +99,7 @@ class GitHubWebhookReporter:
         rules = await self.db.autolabelrule.find_many(
             where={"repository": repository.lower()}
         )
-        labels_to_add = set()
+        labels_to_add = {label["name"] for label in pr["labels"]}
 
         for rule in rules:
             if rule.type == AutolabelRuleType.branch_name and re.fullmatch(
