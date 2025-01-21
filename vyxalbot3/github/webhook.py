@@ -38,7 +38,10 @@ class GitHubWebhookReporter:
             if isinstance(generator, Coroutine):
                 await generator
                 return
-            message = await anext(generator)
+            try:
+                message = await anext(generator)
+            except StopAsyncIteration:
+                return
             while True:
                 try:
                     if isinstance(message, str):
