@@ -405,8 +405,8 @@ class Commands:
         return (
             f"Group information for {name}:\n"
             f"- Members: {members}\n"
-            f"- Allowed commands: {allowed_commands}"
-            f"- Managed by: {is_managed_by}"
+            f"- Allowed commands: {allowed_commands}\n"
+            f"- Managed by: {is_managed_by}\n"
             f"- Can manage: {can_manage}"
         )
 
