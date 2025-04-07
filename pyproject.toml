@@ -9,16 +9,16 @@ readme = "README.md"
 python = "^3.13"
 sechat = {git = "https://github.com/gingershaped/sechat", rev = "v3"}
 gidgethub = "^5.3.0"
-pydantic = "^2.10.6"
+pydantic = "^2.11.2"
 pydantic-settings = "^2.8.1"
-aiohttp = "^3.11.13"
-rich = "^13.9.4"
+aiohttp = "^3.11.16"
+rich = "^14.0.0"
 uwuipy = "^0.1.10"
 prisma = "^0.15.0"
 asciitree = "^0.3.3"
 lark = "^1.2.2"
 bs4 = "^0.0.2"
-lxml = "^5.3.1"
+lxml = "^5.3.2"
 
 
 [tool.poetry.group.dev.dependencies]
