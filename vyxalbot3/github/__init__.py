@@ -5,8 +5,7 @@ from aiohttp import ClientSession
 from gidgethub.aiohttp import GitHubAPI
 from gidgethub.apps import get_jwt as get_github_jwt
 
-from vyxalbot3.util import autocache
-
+from returncache import returncache
 
 class AppGitHubAPI(GitHubAPI):
     def __init__(
@@ -16,7 +15,7 @@ class AppGitHubAPI(GitHubAPI):
         self.app_id = app_id
         self.private_key = private_key
 
-    @autocache
+    @returncache(keyed_by_parameters=False)
     async def app_token(self):
         jwt = get_github_jwt(app_id=self.app_id, private_key=self.private_key)
         async for installation in self.getiter("/app/installations", jwt=jwt):
