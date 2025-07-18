@@ -220,7 +220,7 @@ I am doing pirate stuff.
 I am yeehawing all day long because I'm a cowgirl now, nerds!
 I am making a very risky investment in dogecoin. Wish me luck!
 I am playing a very difficult and challenging game called "The Floor Is Lava".
-I am playing an even more difficult and challenging game called "Lava doesn't exist, you idiot. Now give me your money.".
+I am playing an even more difficult and challenging game called "Lava doesn't exist, you idiot. Now give me your money."
 I am doing active listening.
 I am doing homework. Why do I even have to do this? It's not like my future depends on it or anything...
 I am doing banana republics.
@@ -489,7 +489,7 @@ I am sitting on your roof with Ginger, watching the birds in your yard.
 I am clearing the birds off of Lyxal's roof.
 I am doing quxbux laundering.
 I am changing my mother's maiden name.
-I am not starting fires. (They were always burning, since the world's been turning.).
+I am not starting fires. (They were always burning, since the world's been turning.)
 I am trying to juic avocad.
 I am lighting the server on fire.
 I am posting starbait.
@@ -528,7 +528,7 @@ I am cleaning my bathroom. Jeez, what happened here? And how did it get on the c
 I am eating my homemade brownies. At least, I *think* these are brownies. It may be charcoal from my fireplace.
 I am taking my fence down. It's fun being a police informant.
 I am shopping for infant food. All I can find is food for infants, though.
-I am doing origami. My latest creation is called "crumpled ball of paper.".
+I am doing origami. My latest creation is called "crumpled ball of paper".
 I am doing the SE sysadmins.
 I am uploading my brain to your computer.
 I am throwing paper into a bonfire.
@@ -542,13 +542,13 @@ I am never gonna give you up, never gonna let you down, never gonna run around a
 I am going mushroom foraging. How very topical of me.
 I am going to a NAB ATM. Want some free cash?
 I... am not dead! However, I'm a little stuck on the floor. Could you... Could you pick me up?
-I am sitting in a box filled with half a million rocks. .
+I am sitting in a box filled with half a million rocks.
 I am watching the television. Come back later please.
 I am drying my hair. I just had a shower and now it's all wet. What do you mean I don't have hair and that I shouldn't be taking showers in water?
 I've got the horses in the back. They're very loud.
 The water got warm, so I decided I might as well swim.
-I am boiling a kettle. .
-Hang on I'm receiving a call. Hello? What? You're kidding!? It's for you. .
+I am boiling a kettle.
+Hang on I'm receiving a call. Hello? What? You're kidding!? It's for you.
 Hang on I'm receiving a call. Hello? What? You're kidding!? It's for... me?..
 I had a good job until my boss accused me of stealing! I better call Saul! .
 I am calling the reading writing hotline. 1300655506. It could change my life.
@@ -556,7 +556,7 @@ I am looking for our ad in the yellow pages directory.
 I am getting a bottle of milk. No clue if I want it low fat, no fat, full cream, high calcium, high protein, soy, light, skim, omega-3, high calcium with vitamin D and folate or extra dollop.
 I am learning that if you break your legs, it's hard to cook orangutan.
 I am climbing the Forbidden Tower.
-_In the beginning were the Words, and the Words made the world. I am the Words. The Words are everything. Where the Words end, the world ends._ ___You cannot go forward in an absence of space.___ _Repeat._.
+_In the beginning were the Words, and the Words made the world. I am the Words. The Words are everything. Where the Words end, the world ends._ ___You cannot go forward in an absence of space.___ _Repeat.
 I am writing error logs.
 I am experiencing the horrors of the Stack Exchange chat API.
 I am generating data files.
