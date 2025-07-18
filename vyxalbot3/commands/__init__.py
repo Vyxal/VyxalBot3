@@ -3,10 +3,9 @@ import random
 import re
 from datetime import date
 from enum import Enum, EnumType
-from itertools import zip_longest
 from logging import getLogger
-from types import NoneType, UnionType
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Mapping, cast
+from types import UnionType
+from typing import Awaitable, Callable, cast
 
 from datetime import datetime
 
@@ -23,13 +22,10 @@ from uwuipy import Uwuipy
 
 from prisma import Prisma
 from vyxalbot3.commands.messages import *
-from vyxalbot3.commands.parser import ArgumentType, ParseError, parse_arguments
+from vyxalbot3.commands.parser import ArgumentType
 from vyxalbot3.github import AppGitHubAPI
 from vyxalbot3.settings import SupplementaryConfiguration
 from vyxalbot3.util import extract_message_id, get_message_room, get_messages_between
-
-if TYPE_CHECKING:
-    from vyxalbot3.commands.parser import Argument
 
 type CommandLeaf = Callable[..., Awaitable[str | tuple[str, int | None] | None]]
 type CommandTree = dict[str, CommandTree] | CommandLeaf

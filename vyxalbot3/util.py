@@ -1,7 +1,4 @@
-import inspect
 import re
-from datetime import datetime
-from typing import Any, Awaitable, Callable, Coroutine, overload
 
 from aiohttp import ClientSession
 from bs4 import BeautifulSoup, Tag

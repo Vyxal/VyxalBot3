@@ -1,16 +1,15 @@
 import inspect
 from enum import Enum, EnumType
 from itertools import zip_longest
-from logging import getLogger
 import random
 import re
 from types import NoneType, UnionType
 from typing import Any, Sequence
 
 from aiohttp import ClientSession
-from prisma.models import User, Group
+from prisma.models import User
 from sechat import Room
-from sechat.events import MessageEvent
+from sechat.events import MessageEvent, EditEvent
 
 from prisma import Prisma
 from vyxalbot3.commands import (
