@@ -229,7 +229,7 @@ class GitHubWebhookReporter:
                 return
         yield (
             f"{sender} [{action}]({review["html_url"]}) {pr} in {repository}"
-            f"{f": \"{escape_markdown(review["body"].splitlines()[0])}\"" if len(review["body"]) else ""}"
+            f"{f": \"{escape_markdown(review["body"].splitlines()[0])}\"" if "body" in review and len(review["body"]) else ""}"
         )
 
     @router.register("create")
