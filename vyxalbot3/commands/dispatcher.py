@@ -177,7 +177,7 @@ class CommandDispatcher:
                 break
             if parameter is None:
                 raise CommandError(
-                    f"Superfluous arguments supplied starting at `{argument[1]}`."
+                    f"Extra arguments supplied starting at `{argument[1]}`."
                 )
             if parameter.name in IGNORED_PARAMETERS:
                 continue
