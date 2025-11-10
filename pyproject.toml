@@ -28,7 +28,7 @@ vyxalbot3 = "vyxalbot3.launch:launch"
 profile = "black"
 
 [tool.poetry.group.dev.dependencies]
-black = "^25.1.0"
+black = "^25.11.0"
 
 [build-system]
 requires = ["poetry-core"]
