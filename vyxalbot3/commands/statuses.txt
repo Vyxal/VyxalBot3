@@ -700,3 +700,5 @@ I am exploring a ---fourth--- fourd sanctuary. I predicted the future.
 I am turning off voice clips
 I am a vyxal bot doing vyxal bot things
 I am watching an amazing video, [click here](https://youtu.be/dQw4w9WgXcQ) to watch it as well!
+Try running `lyxal` in the online interpreter.
+This is coach number {__import__('secrets').choice(range(1,13))} of 12.
