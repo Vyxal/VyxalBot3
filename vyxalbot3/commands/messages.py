@@ -3,7 +3,7 @@ import zlib
 
 with open(os.path.join(os.path.split(__file__)[0], "statuses.txt")) as file:
     STATUSES = [
-        line
+        'f"'+line.replace('"','\\\"')+'"' # Evaluates later. Don't use double quotes in the f string brackets.
         for line in file.read().strip().splitlines()
         if zlib.crc32(line.encode()) != 3073835353
     ]

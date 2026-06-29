@@ -189,7 +189,7 @@ class Commands:
 
     async def status_command(self, mood: StatusMood = StatusMood.NORMAL):
         """Display "status information"."""
-        status = random.choice(STATUSES)
+        status = eval(random.choice(STATUSES)) # We trust everything inside statuses.txt
         match mood:
             case Commands.StatusMood.NORMAL:
                 return status
