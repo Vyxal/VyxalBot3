@@ -57,11 +57,13 @@ class Commands:
         db: Prisma,
         gh: AppGitHubAPI,
         config: SupplementaryConfiguration,
+        juices_list: list,
     ):
         self.config = config
         self.room = room
         self.db = db
         self.gh = gh
+        self.juices_list = juices_list
         self.init_time = datetime.now()
         self.tree: dict[str, CommandTree] = {}
 
@@ -778,3 +780,20 @@ class Commands:
     async def uptime_command(self):
         """Returns how long the bot has been running"""
         return f"I have been {"falling" if random.random() <= 0.1 else "running"} for {datetime.now() - self.init_time}!"
+
+    # Juice commands
+
+    async def juice_sell_command(self, juice_type: str, price: int):
+        """Sell juice!"""
+        self.juices_list.append({"juice_type": juice_type, "price": price})
+        return f"Sold {juice_type} juice for {price}VC at listing {len(self.juices_list) - 1}."
+    
+    async def juice_buy_command(self, index: int):
+        """Buy juice!"""
+        item = self.juices_list[index]
+        del self.juices_list[index]
+        return f"Bought {item["juice_type"]} juice for {item["price"]}VC at listing {index}."
+    
+    async def juice_list_command(self):
+        """Look at the many juices on offer!"""
+        return f"Here is a list of juices you can buy:\n\n{'\n'.join(f'{i}. {j['juice_type']} juice for {j['price']}VC' for i,j in enumerate(self.juices_list))}"
