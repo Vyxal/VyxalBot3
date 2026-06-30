@@ -22,6 +22,7 @@ async def main(settings: Settings, config: SupplementaryConfiguration):
     app = Application(logger=logger.getChild("web"))
     runner = AppRunner(app)
     db = Prisma()
+    juices_list = [] # Must figure out how to adjust database schema
 
     credentials = await Credentials.load_or_authenticate(
         "credentials.dat",
@@ -38,7 +39,7 @@ async def main(settings: Settings, config: SupplementaryConfiguration):
             str(settings.github.app_id),
             settings.github.private_key,
         )
-        commands = Commands(room, db, gh, config)
+        commands = Commands(room, db, gh, config, juices_list)
         dispatcher = CommandDispatcher(room, db, commands.tree, config.reactions)
         webhook = GitHubWebhookReporter(room, db, gh, settings.webhook.secret)
         app.add_routes(
